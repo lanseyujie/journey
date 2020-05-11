@@ -1,6 +1,8 @@
 package router
 
-import "strings"
+import (
+    "strings"
+)
 
 // Tree is a prefix tree that routing rules with the same namespace
 // will share the same prefix node, a bit like Trie
@@ -23,22 +25,22 @@ type HandlerFunc func(httpCtx *Context)
 type Node struct {
     name     string
     depth    int
-    uri      string
+    fullName string
     children map[string]*Node
     handle   map[string]HandlerFunc
 }
 
 // NewNode returns a new node based on the name and node depth
 func NewNode(name string, depth int) *Node {
-    uri := ""
+    fullName := ""
     if name == "/" {
-        uri = "/"
+        fullName = "/"
     }
 
     return &Node{
         name:     name,
         depth:    depth,
-        uri:      uri,
+        fullName: fullName,
         children: make(map[string]*Node),
         handle:   make(map[string]HandlerFunc),
     }
@@ -47,7 +49,7 @@ func NewNode(name string, depth int) *Node {
 // Insert a routing rule into the tree
 func (t *Tree) Insert(method, pattern string, handle HandlerFunc) {
     currentNode := t.root
-    currentUri := t.root.uri
+    currentFullName := t.root.fullName
 
     if pattern != currentNode.name {
         names := strings.Split(pattern, "/")
@@ -58,20 +60,25 @@ func (t *Tree) Insert(method, pattern string, handle HandlerFunc) {
                 continue
             }
 
-            currentUri += name
+            currentFullName += name
             // according to the index to determine whether it is a path name
             if index < length-1 {
-                currentUri += "/"
+                currentFullName += "/"
             }
 
             node, exist := currentNode.children[name]
             if !exist {
                 node = NewNode(name, currentNode.depth+1)
-                node.uri = currentUri
+                node.fullName = currentFullName
                 currentNode.children[name] = node
             }
 
             currentNode = node
+
+            // do not register nodes after {*} nodes
+            if name == "{*}" {
+                break
+            }
         }
     }
 
