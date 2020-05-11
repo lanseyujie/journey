@@ -1,6 +1,7 @@
 package router
 
 import (
+    "regexp"
     "strings"
 )
 
@@ -86,8 +87,88 @@ func (t *Tree) Insert(method, pattern string, handle HandlerFunc) {
     currentNode.handle[strings.ToUpper(method)] = handle
 }
 
-// Find the controller in the tree according to the routing rule
-func (t *Tree) Find(pattern string) *Node {
-    // TODO://
-    return nil
+// Query the controller in the tree according to the request uri
+func (t *Tree) Query(requestUri string) (*Node, map[string]string) {
+    currentNode := t.root
+    currentRequestUri := t.root.fullName
+    params := make(map[string]string)
+
+    if currentRequestUri == requestUri {
+        return currentNode, params
+    }
+
+    names := strings.Split(requestUri, "/")
+    length := len(names)
+    for index, name := range names {
+        if name == "" {
+            continue
+        }
+
+        currentRequestUri += name
+        if index < length-1 {
+            currentRequestUri += "/"
+        }
+
+        node, exist := currentNode.children[name]
+        if exist {
+            currentNode = node
+        } else {
+            // find and match rules
+            found := false
+            for rule, childNode := range currentNode.children {
+                key, pattern := getPattern(rule)
+                if key != "" {
+                    if key == "*" {
+                        params[key] = requestUri[strings.Index(requestUri, name):]
+
+                        return childNode, params
+                    } else {
+                        // may be panic here if the regexp is wrong
+                        if pattern != "" && !regexp.MustCompile(pattern).MatchString(name) {
+                            // Irregular and continue to the next match
+                            continue
+                        }
+
+                        params[key] = name
+                        currentNode = childNode
+                        found = true
+
+                        // meet the rules and jump out of the current node's match
+                        break
+                    }
+                }
+            }
+
+            if !found {
+                return nil, params
+            }
+        }
+    }
+
+    return currentNode, params
+}
+
+func getPattern(rule string) (key, pattern string) {
+    length := len(rule)
+    firstChar := rule[:1]
+    lastChar := rule[length-1:]
+
+    if firstChar == ":" {
+        // e.g. :id, :name, :key
+        key = rule[1:]
+        if key == "id" {
+            pattern = `^[\d]+$`
+        } else if key == "name" {
+            pattern = `^[\w]+$`
+        }
+    } else if length > 2 && firstChar == "{" && lastChar == "}" {
+        // e.g. {id:^[\d]+$}, {name}, {*}
+        res := strings.Split(rule[1:length-1], ":")
+        key = res[0]
+        if res[0] != "*" && len(res) > 1 && res[1] != "" {
+            pattern = res[1]
+        }
+    }
+
+    return
 }
