@@ -24,26 +24,29 @@ type HandlerFunc func(httpCtx *Context)
 
 // Node mounts the callback controller
 type Node struct {
-    name     string
     depth    int
-    fullName string
+    rule     string
+    fullRule string
+    key      string
+    pattern  *regexp.Regexp
+    parent   *Node
     children map[string]*Node
-    handle   map[string]HandlerFunc
+    handlers map[string]HandlerFunc
 }
 
-// NewNode returns a new node based on the name and node depth
-func NewNode(name string, depth int) *Node {
-    fullName := ""
-    if name == "/" {
-        fullName = "/"
+// NewNode returns a new node based on the rule and node depth
+func NewNode(rule string, depth int) *Node {
+    fullRule := ""
+    if rule == "/" {
+        fullRule = "/"
     }
 
     return &Node{
-        name:     name,
         depth:    depth,
-        fullName: fullName,
+        rule:     rule,
+        fullRule: fullRule,
         children: make(map[string]*Node),
-        handle:   make(map[string]HandlerFunc),
+        handlers: make(map[string]HandlerFunc),
     }
 }
 
@@ -148,26 +151,40 @@ func (t *Tree) Query(requestUri string) (*Node, map[string]string) {
     return currentNode, params
 }
 
-func getPattern(rule string) (key, pattern string) {
+// parse the rule and compile it
+func compile(rule string) (key string, pattern *regexp.Regexp) {
     length := len(rule)
     firstChar := rule[:1]
     lastChar := rule[length-1:]
 
-    if firstChar == ":" {
-        // e.g. :id, :name, :key
-        key = rule[1:]
-        if key == "id" {
-            pattern = `^[\d]+$`
-        } else if key == "name" {
-            pattern = `^[\w]+$`
+    if firstChar == ":" && length > 1 {
+        // e.g. :id, :name, :str, :*, :uid(^[\d]+$)
+        s := rule[1:]
+        if s == "id" {
+            key = "id"
+            pattern = regexp.MustCompile(`^[\d]+$`)
+        } else if s == "name" {
+            key = "name"
+            pattern = regexp.MustCompile(`^[\w]+$`)
+        } else {
+            a := strings.Index(s, "(")
+            b := strings.LastIndex(s, ")")
+            if s[:1] != "*" && 0 < a && a < b {
+                key = s[:a]
+                pattern = regexp.MustCompile(s[a+1 : b])
+            } else {
+                key = s
+            }
         }
-    } else if length > 2 && firstChar == "{" && lastChar == "}" {
-        // e.g. {id:^[\d]+$}, {name}, {*}
+    } else if firstChar == "{" && lastChar == "}" && length > 2 {
+        // e.g. {id:^[\d]+$}, {str}, {*}
         res := strings.Split(rule[1:length-1], ":")
         key = res[0]
         if res[0] != "*" && len(res) > 1 && res[1] != "" {
-            pattern = res[1]
+            pattern = regexp.MustCompile(res[1])
         }
+    } else if length > 0 && firstChar != ":" && firstChar != "{" {
+        key = rule
     }
 
     return
