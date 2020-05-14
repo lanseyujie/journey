@@ -51,43 +51,53 @@ func NewNode(rule string, depth int) *Node {
 }
 
 // Insert a routing rule into the tree
-func (t *Tree) Insert(method, pattern string, handle HandlerFunc) {
+func (t *Tree) Insert(method, fullRule string, handle HandlerFunc) {
     currentNode := t.root
-    currentFullName := t.root.fullName
+    currentFullRule := t.root.fullRule
 
-    if pattern != currentNode.name {
-        names := strings.Split(pattern, "/")
-        length := len(names)
-        for index, name := range names {
-            if name == "" {
-                // exclude empty name that begin or end with /
+    if currentFullRule != fullRule {
+        rules := strings.Split(fullRule, "/")
+        length := len(rules)
+        for index, rule := range rules {
+            if rule == "" {
+                // exclude empty rule that begin or end with / and consecutive /
                 continue
             }
 
-            currentFullName += name
-            // according to the index to determine whether it is a path name
-            if index < length-1 {
-                currentFullName += "/"
+            // check and parse the rule
+            // may be panic here if the rule is wrong
+            key, pattern := compile(rule)
+            if key == "" {
+                panic("rule error: `" + rule + "` in " + fullRule)
             }
 
-            node, exist := currentNode.children[name]
+            currentFullRule += rule
+            // according to the index to determine whether it is a path name
+            if index < length-1 {
+                currentFullRule += "/"
+            }
+
+            node, exist := currentNode.children[rule]
             if !exist {
-                node = NewNode(name, currentNode.depth+1)
-                node.fullName = currentFullName
-                currentNode.children[name] = node
+                node = NewNode(rule, currentNode.depth+1)
+                node.fullRule = currentFullRule
+                node.key = key
+                node.pattern = pattern
+                node.parent = currentNode
+                currentNode.children[rule] = node
             }
 
             currentNode = node
 
-            // do not register nodes after {*} nodes
-            if name == "{*}" {
+            // do not register nodes after * nodes
+            if rule == "{*}" || rule == ":*" {
                 break
             }
         }
     }
 
     // register the controller method at the last node
-    currentNode.handle[strings.ToUpper(method)] = handle
+    currentNode.handlers[strings.ToUpper(method)] = handle
 }
 
 // Query the controller in the tree according to the request uri
