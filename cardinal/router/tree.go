@@ -100,10 +100,10 @@ func (t *Tree) Insert(method, fullRule string, handle HandlerFunc) {
     currentNode.handlers[strings.ToUpper(method)] = handle
 }
 
-// Query the controller in the tree according to the request uri
-func (t *Tree) Query(requestUri string) (*Node, map[string]string) {
+// Match the request uri in the tree to get the target node
+func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
     currentNode := t.root
-    currentRequestUri := t.root.fullName
+    currentRequestUri := t.root.fullRule
     params := make(map[string]string)
 
     if currentRequestUri == requestUri {
@@ -117,38 +117,30 @@ func (t *Tree) Query(requestUri string) (*Node, map[string]string) {
             continue
         }
 
-        currentRequestUri += name
-        if index < length-1 {
-            currentRequestUri += "/"
-        }
-
         node, exist := currentNode.children[name]
-        if exist {
-            currentNode = node
-        } else {
-            // find and match rules
+        if !exist {
+            // match the rule
             found := false
-            for rule, childNode := range currentNode.children {
-                key, pattern := getPattern(rule)
-                if key != "" {
-                    if key == "*" {
-                        params[key] = requestUri[strings.Index(requestUri, name):]
+            for _, childNode := range currentNode.children {
+                if childNode.key == "*" {
+                    // for wildcard
+                    params[childNode.key] = requestUri[len(currentRequestUri):]
 
-                        return childNode, params
-                    } else {
-                        // may be panic here if the regexp is wrong
-                        if pattern != "" && !regexp.MustCompile(pattern).MatchString(name) {
-                            // Irregular and continue to the next match
-                            continue
-                        }
-
-                        params[key] = name
-                        currentNode = childNode
-                        found = true
-
-                        // meet the rules and jump out of the current node's match
-                        break
+                    return childNode, params
+                } else if childNode.key != childNode.rule {
+                    // for custom rule
+                    if childNode.pattern != nil && !childNode.pattern.MatchString(name) {
+                        // rule mismatch and continue to the next match
+                        continue
                     }
+
+                    // the rule has been successfully matched
+                    found = true
+                    params[childNode.key] = name
+                    node = childNode
+
+                    // jumps out of matching child nodes at the current node
+                    break
                 }
             }
 
@@ -156,6 +148,13 @@ func (t *Tree) Query(requestUri string) (*Node, map[string]string) {
                 return nil, params
             }
         }
+
+        currentRequestUri += name
+        if index < length-1 {
+            currentRequestUri += "/"
+        }
+
+        currentNode = node
     }
 
     return currentNode, params
