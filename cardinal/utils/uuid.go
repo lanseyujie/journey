@@ -9,10 +9,13 @@ import (
 
 type Uuid [16]byte
 
-// GeneratorV4 returns random generated UUID
-func GeneratorV4() *Uuid {
-    u := Uuid{}
-    _, _ = io.ReadFull(rand.Reader, u[:])
+// NewV4 returns random generated UUID
+func NewUuidV4() (*Uuid, error) {
+    u := &Uuid{}
+    _, err := io.ReadFull(rand.Reader, u[:])
+    if err != nil {
+        return nil, err
+    }
 
     var version byte = 4
 
@@ -22,15 +25,22 @@ func GeneratorV4() *Uuid {
     // set variant RFC4122 bits
     u[8] = (u[8] & (0xff >> 2)) | (0x02 << 6)
 
-    return &u
+    return u, nil
 }
 
-// GeneratorV5 returns UUID based on SHA-1 hash of namespace UUID and name
-func GeneratorV5(namespace []byte, name string) *Uuid {
-    u := Uuid{}
+// NewV5 returns UUID based on SHA-1 hash of namespace UUID and name
+func NewUuidV5(namespace []byte, name string) (*Uuid, error) {
+    u := &Uuid{}
     h := sha1.New()
-    h.Write(namespace)
-    h.Write([]byte(name))
+    _, err := h.Write(namespace)
+    if err != nil {
+        return nil, err
+    }
+    _, err = h.Write([]byte(name))
+    if err != nil {
+        return nil, err
+    }
+
     copy(u[:], h.Sum(nil))
 
     var version byte = 5
@@ -41,7 +51,7 @@ func GeneratorV5(namespace []byte, name string) *Uuid {
     // set variant RFC4122 bits
     u[8] = (u[8] & (0xff >> 2)) | (0x02 << 6)
 
-    return &u
+    return u, nil
 }
 
 // Returns canonical string representation of UUID
