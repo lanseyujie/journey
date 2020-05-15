@@ -22,16 +22,20 @@ func NewTree() *Tree {
 // HandlerFunc is the type of controller
 type HandlerFunc func(httpCtx *Context)
 
+// MiddlewareFunc is the type of middleware
+type MiddlewareFunc func(handler HandlerFunc) HandlerFunc
+
 // Node mounts the callback controller
 type Node struct {
-    depth    int
-    rule     string
-    fullRule string
-    key      string
-    pattern  *regexp.Regexp
-    parent   *Node
-    children map[string]*Node
-    handlers map[string]HandlerFunc
+    depth      int
+    rule       string
+    fullRule   string
+    key        string
+    pattern    *regexp.Regexp
+    parent     *Node
+    children   map[string]*Node
+    handlers   map[string]HandlerFunc
+    middleware []MiddlewareFunc
 }
 
 // NewNode returns a new node based on the rule and node depth
@@ -51,7 +55,7 @@ func NewNode(rule string, depth int) *Node {
 }
 
 // Insert a routing rule into the tree
-func (t *Tree) Insert(method, fullRule string, handle HandlerFunc) {
+func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware ...MiddlewareFunc) {
     currentNode := t.root
     currentFullRule := t.root.fullRule
 
@@ -97,7 +101,14 @@ func (t *Tree) Insert(method, fullRule string, handle HandlerFunc) {
     }
 
     // register the controller method at the last node
-    currentNode.handlers[strings.ToUpper(method)] = handle
+    if handler != nil {
+        currentNode.handlers[strings.ToUpper(method)] = handler
+    }
+    for _, m := range middleware {
+        if m != nil {
+            currentNode.middleware = append(currentNode.middleware, m)
+        }
+    }
 }
 
 // Match the request uri in the tree to get the target node
@@ -197,4 +208,26 @@ func compile(rule string) (key string, pattern *regexp.Regexp) {
     }
 
     return
+}
+
+func MiddlewareList(node *Node) []MiddlewareFunc {
+    list := make([]MiddlewareFunc, 0)
+    var fn func(node *Node) []MiddlewareFunc
+    fn = func(node *Node) []MiddlewareFunc {
+        // loop:
+        if node.parent != nil {
+            if len(node.parent.middleware) > 0 {
+                list = append(node.parent.middleware, list...)
+            }
+
+            node = node.parent
+            fn(node)
+            // goto loop
+        }
+
+        return list
+    }
+
+    // return list
+    return fn(node)
 }
