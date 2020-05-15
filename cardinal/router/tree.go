@@ -1,7 +1,11 @@
 package router
 
 import (
+    "fmt"
+    "reflect"
     "regexp"
+    "runtime"
+    "strconv"
     "strings"
 )
 
@@ -171,6 +175,44 @@ func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
     return currentNode, params
 }
 
+// Show the controller and middleware for each routing rule
+func (t *Tree) Show(node *Node) {
+    if node == nil {
+        node = t.root
+    }
+
+    fn := func(node *Node) {
+        p := node.fullRule
+        if len(node.handlers) > 0 {
+            // middleware list
+            middleware := MiddlewareList(node)
+            if len(middleware) > 0 {
+                p += " ["
+                for i, m := range middleware {
+                    p += " " + strconv.Itoa(i) + ":" + runtime.FuncForPC(reflect.ValueOf(m).Pointer()).Name()
+                }
+                p += " ]"
+            }
+
+            // controller list
+            p += " ["
+            for method, fn := range node.handlers {
+                p += " " + method + ":" + runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+            }
+            p += " ]"
+
+            fmt.Println(p)
+        }
+    }
+
+    if len(node.children) > 0 {
+        for _, child := range node.children {
+            fn(child)
+            t.Show(child)
+        }
+    }
+}
+
 // parse the rule and compile it
 func compile(rule string) (key string, pattern *regexp.Regexp) {
     length := len(rule)
@@ -210,11 +252,11 @@ func compile(rule string) (key string, pattern *regexp.Regexp) {
     return
 }
 
+// MiddlewareList returns middleware in each layer in top-down order
 func MiddlewareList(node *Node) []MiddlewareFunc {
     list := make([]MiddlewareFunc, 0)
     var fn func(node *Node) []MiddlewareFunc
     fn = func(node *Node) []MiddlewareFunc {
-        // loop:
         if node.parent != nil {
             if len(node.parent.middleware) > 0 {
                 list = append(node.parent.middleware, list...)
@@ -222,12 +264,10 @@ func MiddlewareList(node *Node) []MiddlewareFunc {
 
             node = node.parent
             fn(node)
-            // goto loop
         }
 
         return list
     }
 
-    // return list
     return fn(node)
 }
