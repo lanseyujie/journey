@@ -7,6 +7,7 @@ import (
     "net/http"
     "strconv"
     "strings"
+    "time"
 )
 
 // Context is the router context
@@ -181,4 +182,26 @@ func (ctx *Context) Cors(domain []string) {
             ctx.Output.Header().Set("Access-Control-Allow-Headers", ctx.Input.Header.Get("Access-Control-Request-Headers"))
         }
     }
+}
+
+// GetCookie
+func (ctx *Context) GetCookie(key string) (*http.Cookie, error) {
+    return ctx.Input.Cookie(key)
+}
+
+// SetCookie
+func (ctx *Context) SetCookie(cookie *http.Cookie) {
+    http.SetCookie(ctx.Output, cookie)
+}
+
+// DelCookie
+func (ctx *Context) DelCookie(key string) {
+    cookie := &http.Cookie{
+        Name:    key,
+        Path:    "/",
+        MaxAge:  0,
+        Expires: time.Now().AddDate(-1, 0, 0),
+    }
+
+    http.SetCookie(ctx.Output, cookie)
 }
