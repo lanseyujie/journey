@@ -231,7 +231,6 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
         } else {
             a := strings.Index(s, "(")
             b := strings.LastIndex(s, ")")
-
             if s[len(s)-1:] == "*" {
                 // *, static*
                 isWildcard = true
@@ -248,12 +247,15 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
     } else if firstChar == "{" && lastChar == "}" && length > 2 {
         // e.g. {id:^[\d]+$}, {str}, {*}, {static*}
         res := strings.Split(rule[1:length-1], ":")
-        key = res[0]
-        if key[len(key)-1:] == "*" {
+        key := res[0]
+        if key == "id" {
+            pattern = regexp.MustCompile(`^[\d]+$`)
+        } else if key == "name" {
+            pattern = regexp.MustCompile(`^[\w]+$`)
+        } else if key[len(key)-1:] == "*" {
             // {*}, {static*}
             isWildcard = true
         } else if len(res) > 1 && res[1] != "" {
-            // {id:^[\d]+$}
             pattern = regexp.MustCompile(res[1])
         }
     } else if length > 0 && firstChar != ":" && firstChar != "{" {
