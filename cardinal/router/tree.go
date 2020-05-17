@@ -74,7 +74,7 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 
             // check and parse the rule
             // may be panic here if the rule is wrong
-            key, pattern := compile(rule)
+            key, pattern, isWildcard := compile(rule)
             if key == "" {
                 panic("rule error: `" + rule + "` in " + fullRule)
             }
@@ -97,8 +97,8 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 
             currentNode = node
 
-            // do not register nodes after * nodes
-            if rule == "{*}" || rule == ":*" {
+            // do not register nodes after wildcard nodes
+            if isWildcard {
                 break
             }
         }
@@ -137,8 +137,8 @@ func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
             // match the rule
             found := false
             for _, childNode := range currentNode.children {
-                if childNode.key == "*" {
-                    // for wildcard
+                if childNode.key[len(childNode.key)-1:] == "*" {
+                    // for wildcard, e.g. *, static*
                     params[childNode.key] = requestUri[len(currentRequestUri):]
 
                     return childNode, params
@@ -214,13 +214,13 @@ func (t *Tree) Show(node *Node) {
 }
 
 // parse the rule and compile it
-func compile(rule string) (key string, pattern *regexp.Regexp) {
+func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) {
     length := len(rule)
     firstChar := rule[:1]
     lastChar := rule[length-1:]
 
     if firstChar == ":" && length > 1 {
-        // e.g. :id, :name, :str, :*, :uid(^[\d]+$)
+        // e.g. :id, :name, :uid(^[\d]+$), :*, :static*, :str
         s := rule[1:]
         if s == "id" {
             key = "id"
@@ -231,18 +231,29 @@ func compile(rule string) (key string, pattern *regexp.Regexp) {
         } else {
             a := strings.Index(s, "(")
             b := strings.LastIndex(s, ")")
-            if s[:1] != "*" && 0 < a && a < b {
+
+            if s[len(s)-1:] == "*" {
+                // *, static*
+                isWildcard = true
+                key = s
+            } else if 0 < a && a < b {
+                // :uid(^[\d]+$)
                 key = s[:a]
                 pattern = regexp.MustCompile(s[a+1 : b])
-            } else {
+            } else if a == b {
+                // :str
                 key = s
             }
         }
     } else if firstChar == "{" && lastChar == "}" && length > 2 {
-        // e.g. {id:^[\d]+$}, {str}, {*}
+        // e.g. {id:^[\d]+$}, {str}, {*}, {static*}
         res := strings.Split(rule[1:length-1], ":")
         key = res[0]
-        if res[0] != "*" && len(res) > 1 && res[1] != "" {
+        if key[len(key)-1:] == "*" {
+            // {*}, {static*}
+            isWildcard = true
+        } else if len(res) > 1 && res[1] != "" {
+            // {id:^[\d]+$}
             pattern = regexp.MustCompile(res[1])
         }
     } else if length > 0 && firstChar != ":" && firstChar != "{" {
@@ -254,6 +265,10 @@ func compile(rule string) (key string, pattern *regexp.Regexp) {
 
 // MiddlewareList returns middleware in each layer in top-down order
 func MiddlewareList(node *Node) []MiddlewareFunc {
+    if node.fullRule == "/" {
+        return node.middleware
+    }
+
     list := make([]MiddlewareFunc, 0)
     var fn func(node *Node) []MiddlewareFunc
     fn = func(node *Node) []MiddlewareFunc {
