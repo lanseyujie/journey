@@ -138,6 +138,10 @@ func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
             found := false
             for _, childNode := range currentNode.children {
                 if childNode.key[len(childNode.key)-1:] == "*" {
+                    if childNode.key != "*" && !strings.HasPrefix(name, childNode.key[:len(childNode.key)-1]) {
+                        continue
+                    }
+
                     // for wildcard, e.g. *, static*
                     params[childNode.key] = requestUri[len(currentRequestUri):]
 
@@ -245,9 +249,9 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
             }
         }
     } else if firstChar == "{" && lastChar == "}" && length > 2 {
-        // e.g. {id:^[\d]+$}, {str}, {*}, {static*}
+        // e.g. {id}, {name}, {uid:^[\d]+$}, {str}, {*}, {static*}
         res := strings.Split(rule[1:length-1], ":")
-        key := res[0]
+        key = res[0]
         if key == "id" {
             pattern = regexp.MustCompile(`^[\d]+$`)
         } else if key == "name" {
