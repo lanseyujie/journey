@@ -1,7 +1,9 @@
 package router
 
 import (
+    "bytes"
     "encoding/json"
+    "fmt"
     "io/ioutil"
     "net"
     "net/http"
@@ -10,10 +12,15 @@ import (
     "time"
 )
 
+var errorHandler = make(map[int]HandlerFunc)
+
+type Array map[string]interface{}
+
 // Context is the router context
 type Context struct {
     Input  *http.Request
     Output http.ResponseWriter
+    code   int
 }
 
 // NewContext returns a new router context
@@ -21,6 +28,7 @@ func NewContext(rw http.ResponseWriter, req *http.Request) *Context {
     return &Context{
         Input:  req,
         Output: rw,
+        code:   http.StatusOK,
     }
 }
 
@@ -55,6 +63,15 @@ func (ctx *Context) GetScheme() string {
 // GetUri returns request uri
 func (ctx *Context) GetUri() string {
     return ctx.Input.URL.Path
+}
+
+// GetParams
+func (ctx *Context) GetParams() map[string]string {
+    if params, ok := ctx.Input.Context().Value("params").(map[string]string); ok {
+        return params
+    }
+
+    return nil
 }
 
 // GetHeader
@@ -111,7 +128,7 @@ func (ctx *Context) GetBody() ([]byte, error) {
     return ioutil.ReadAll(ctx.Input.Body)
 }
 
-// GetJson
+// GetJson and parse it
 func (ctx *Context) GetJson(m interface{}) (interface{}, error) {
     ret, err := ioutil.ReadAll(ctx.Input.Body)
     if err != nil {
@@ -126,14 +143,69 @@ func (ctx *Context) GetJson(m interface{}) (interface{}, error) {
     return m, nil
 }
 
-// Redirect
+// Html response
+func (ctx *Context) Html(code int, html []byte) {
+    ctx.Output.Header().Set("Content-Type", "text/html; charset=utf-8")
+    ctx.StatusCode(code)
+    _, _ = ctx.Output.Write(html)
+}
+
+// Json response
+func (ctx *Context) Json(code int, m interface{}) {
+    ctx.Output.Header().Set("Cache-Control", "no-store")
+    ctx.Output.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+    writer := bytes.NewBuffer([]byte{})
+    encoder := json.NewEncoder(writer)
+    if err := encoder.Encode(&m); err != nil {
+        code = http.StatusInternalServerError
+    }
+
+    ctx.StatusCode(code)
+    _, _ = ctx.Output.Write(writer.Bytes())
+}
+
+// CanonicalJson response
+func (ctx *Context) CanonicalJson(code int, msg string, data interface{}) {
+    ctx.Output.Header().Set("Cache-Control", "no-store")
+    ctx.Output.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+    arr := make(Array)
+    arr["code"] = code
+    arr["msg"] = msg
+    arr["data"] = data
+
+    b, err := json.Marshal(&arr)
+    if err != nil {
+        b = []byte(`{"code":500,"msg":"json encode error","data":""}`)
+    }
+
+    ctx.StatusCode(code)
+    _, _ = ctx.Output.Write(b)
+}
+
+// Text response
+func (ctx *Context) Text(code int, text []byte) {
+    ctx.Output.Header().Set("Content-Type", "text/plain; charset=utf-8")
+    ctx.StatusCode(code)
+    _, _ = ctx.Output.Write(text)
+}
+
+// StatusCode
+func (ctx *Context) StatusCode(code int) {
+    ctx.code = code
+    ctx.Output.WriteHeader(ctx.code)
+}
+
+// Redirect response
 func (ctx *Context) Redirect(code int, url string) {
     if 300 < code && code < 400 {
-        ctx.Output.WriteHeader(code)
+        ctx.StatusCode(code)
         ctx.Output.Header().Set("Location", url)
     }
 }
 
+// HttpsUpgrade redirect response
 func (ctx *Context) HttpsUpgrade(port int) {
     url := "https://" + ctx.GetHost()
     if port != 443 {
@@ -147,7 +219,7 @@ func (ctx *Context) HttpsUpgrade(port int) {
     ctx.Redirect(http.StatusMovedPermanently, url)
 }
 
-// Cors
+// Cors response
 func (ctx *Context) Cors(domain []string) {
     allow := false
     origin := ctx.Input.Header.Get("Origin")
@@ -175,13 +247,59 @@ func (ctx *Context) Cors(domain []string) {
     }
 
     if allow {
-        ctx.Output.WriteHeader(http.StatusNoContent)
+        ctx.StatusCode(http.StatusNoContent)
         ctx.Output.Header().Set("Access-Control-Allow-Origin", origin)
         if ctx.Input.Method == http.MethodOptions {
             ctx.Output.Header().Set("Access-Control-Allow-Methods", strings.Join(method, ", "))
             ctx.Output.Header().Set("Access-Control-Allow-Headers", ctx.Input.Header.Get("Access-Control-Request-Headers"))
         }
     }
+}
+
+// Error page response
+func (ctx *Context) Error(code int) {
+    if handler, exist := errorHandler[code]; exist {
+        handler(ctx)
+    } else {
+        ctx.StatusCode(code)
+        _, _ = ctx.Output.Write([]byte(http.StatusText(code)))
+    }
+}
+
+// FileServerHandler returns the file server handler
+func FileServerHandler(prefix, dir string) HandlerFunc {
+    return func(httpCtx *Context) {
+        http.StripPrefix(prefix, http.FileServer(http.Dir(dir))).ServeHTTP(httpCtx.Output, httpCtx.Input)
+    }
+}
+
+// GetErrorHandler returns the specified error handler
+func GetErrorHandler(code int) HandlerFunc {
+    if handler, exist := errorHandler[code]; exist {
+        return handler
+    }
+
+    return func(ctx *Context) {
+        ctx.StatusCode(code)
+        _, _ = ctx.Output.Write([]byte(http.StatusText(code)))
+    }
+}
+
+// SetErrorHandler for custom error handler
+func SetErrorHandler(code int, handler HandlerFunc) {
+    if handler != nil {
+        errorHandler[code] = handler
+    }
+}
+
+// Handler is used to execute the handler
+func (ctx *Context) Handler(handler HandlerFunc) {
+    handler(ctx)
+}
+
+// Logger
+func (ctx *Context) Logger(t time.Time) string {
+    return fmt.Sprintf("%s %s %s %s %v %d %s", ctx.GetClientIp(), ctx.Input.Method, ctx.Input.Host, ctx.Input.URL, time.Since(t), ctx.code, ctx.Input.UserAgent())
 }
 
 // GetCookie
