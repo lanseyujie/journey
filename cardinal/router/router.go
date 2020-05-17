@@ -1,6 +1,7 @@
 package router
 
 import (
+    "context"
     "net/http"
 )
 
@@ -24,8 +25,8 @@ func Default() *Router {
 }
 
 // Static will quickly register a static file service route
-func Static(path string) {
-    // TODO://
+func (r *Router) Static(prefix, path string) {
+    r.Get(prefix+"/*", FileServerHandler("/"+prefix+"/", path))
 }
 
 func (r *Router) Head(pattern string, f HandlerFunc) {
@@ -77,5 +78,46 @@ func (r *Router) Show() {
 // ServeHTTP
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     httpCtx := NewContext(rw, req)
-    // TODO://
+    uri := httpCtx.GetUri()
+    method := httpCtx.GetMethod()
+    node, params := r.tree.Match(uri)
+    var (
+        middleware []MiddlewareFunc
+        handler    HandlerFunc
+        exist      bool
+    )
+
+    if node != nil {
+        httpCtx.Input = httpCtx.Input.WithContext(context.WithValue(httpCtx.Input.Context(), "params", params))
+        middleware = MiddlewareList(node)
+        handler, exist = node.handlers[method]
+        if !exist {
+            // if the HEAD handler does not exist and the GET handler exists, call the GET handler
+            if h, exist := node.handlers[http.MethodGet]; method == http.MethodHead && exist {
+                handler = h
+            } else {
+                // default handler
+                handler, _ = node.handlers["ANY"]
+            }
+        }
+
+        if handler == nil {
+            handler = GetErrorHandler(http.StatusMethodNotAllowed)
+        }
+    } else {
+        middleware = r.tree.root.middleware
+        handler = GetErrorHandler(http.StatusNotFound)
+    }
+
+    if len(middleware) > 0 {
+        // TODO:// use chained calls instead it?
+        // handler push
+        for _, m := range middleware {
+            if m != nil {
+                handler = m(handler)
+            }
+        }
+    }
+    // handler pop
+    handler(httpCtx)
 }
