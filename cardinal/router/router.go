@@ -2,7 +2,11 @@ package router
 
 import (
     "context"
+    "errors"
+    "fmt"
+    "log"
     "net/http"
+    "time"
 )
 
 // Router
@@ -20,6 +24,7 @@ func NewRouter() *Router {
 // Default returns a default configured router
 func Default() *Router {
     router := NewRouter()
+    router.Group("/").Use(MiddlewareLogger)
 
     return router
 }
@@ -27,6 +32,35 @@ func Default() *Router {
 // Static will quickly register a static file service route
 func (r *Router) Static(prefix, path string) {
     r.Get(prefix+"/*", FileServerHandler("/"+prefix+"/", path))
+}
+
+func MiddlewareLogger(handler HandlerFunc) HandlerFunc {
+    return func(httpCtx *Context) {
+        t := time.Now()
+        defer func() {
+            var err error
+            if e := recover(); e != nil {
+                switch e := e.(type) {
+                case string:
+                    err = errors.New(e)
+                case error:
+                    err = e
+                default:
+                    err = errors.New(fmt.Sprint(e))
+                }
+            }
+            if err != nil {
+                log.Println(err)
+                // log.Println(string(debug.Stack()))
+                httpCtx.Error(http.StatusInternalServerError)
+                // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
+                // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
+            }
+            log.Println(httpCtx.Logger(t))
+        }()
+
+        handler(httpCtx)
+    }
 }
 
 func (r *Router) Head(pattern string, f HandlerFunc) {
