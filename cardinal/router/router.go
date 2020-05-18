@@ -6,6 +6,8 @@ import (
     "fmt"
     "log"
     "net/http"
+    "net/http/httputil"
+    "runtime/debug"
     "time"
 )
 
@@ -51,7 +53,9 @@ func MiddlewareLogger(handler HandlerFunc) HandlerFunc {
             }
             if err != nil {
                 log.Println(err)
-                // log.Println(string(debug.Stack()))
+                log.Println(string(debug.Stack()))
+                request, _ := httputil.DumpRequest(httpCtx.Input, false)
+                log.Println(string(request))
                 httpCtx.Error(http.StatusInternalServerError)
                 // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
                 // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
@@ -114,13 +118,15 @@ func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     httpCtx := NewContext(rw, req)
     uri := httpCtx.GetUri()
     method := httpCtx.GetMethod()
-    node, params := r.tree.Match(uri)
+
     var (
         middleware []MiddlewareFunc
         handler    HandlerFunc
         exist      bool
     )
 
+    // TODO:// cache
+    node, params := r.tree.Match(uri)
     if node != nil {
         httpCtx.Input = httpCtx.Input.WithContext(context.WithValue(httpCtx.Input.Context(), "params", params))
         middleware = MiddlewareList(node)
