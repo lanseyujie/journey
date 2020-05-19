@@ -21,6 +21,7 @@ type Context struct {
     Input  *http.Request
     Output http.ResponseWriter
     code   int
+    since  time.Time
 }
 
 // NewContext returns a new router context
@@ -297,9 +298,19 @@ func (ctx *Context) Handler(handler HandlerFunc) {
     handler(ctx)
 }
 
+// GetStatusCode
+func (ctx *Context) GetStatusCode() int {
+    return ctx.code
+}
+
+// GetSinceTime
+func (ctx *Context) GetSinceTime() time.Time {
+    return ctx.since
+}
+
 // Logger
-func (ctx *Context) Logger(t time.Time) string {
-    return fmt.Sprintf("%s %s %s %s %v %d %s", ctx.GetClientIp(), ctx.Input.Method, ctx.Input.Host, ctx.Input.URL, time.Since(t), ctx.code, ctx.Input.UserAgent())
+func (ctx *Context) Logger() string {
+    return fmt.Sprintf("%s %s %s %s %v %d %s", ctx.GetClientIp(), ctx.Input.Method, ctx.Input.Host, ctx.Input.URL, time.Since(ctx.since), ctx.code, ctx.Input.UserAgent())
 }
 
 // GetCookie

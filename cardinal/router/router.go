@@ -38,7 +38,6 @@ func (r *Router) Static(prefix, path string) {
 
 func MiddlewareLogger(handler HandlerFunc) HandlerFunc {
     return func(httpCtx *Context) {
-        t := time.Now()
         defer func() {
             var err error
             if e := recover(); e != nil {
@@ -60,7 +59,7 @@ func MiddlewareLogger(handler HandlerFunc) HandlerFunc {
                 // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
                 // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
             }
-            log.Println(httpCtx.Logger(t))
+            log.Println(httpCtx.Logger())
         }()
 
         handler(httpCtx)
@@ -115,7 +114,9 @@ func (r *Router) Show() {
 
 // ServeHTTP
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+    t := time.Now()
     httpCtx := NewContext(rw, req)
+    httpCtx.since = t
     uri := httpCtx.GetUri()
     method := httpCtx.GetMethod()
 
