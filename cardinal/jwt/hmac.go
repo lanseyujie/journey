@@ -19,24 +19,38 @@ const (
     SHA512 = crypto.Hash(crypto.SHA512)
 )
 
+var pool = make([]*HMAC, 0, 1)
+
 // HMAC
 type HMAC struct {
-    secret []byte
+    secret string
     crypto crypto.Hash
     hash   hash.Hash
     size   int
 }
 
 // NewHMAC creates a new HMAC signing method
-func NewHMAC(c crypto.Hash, secret []byte) *HMAC {
-    h := hmac.New(c.New, secret)
+func NewHMAC(c crypto.Hash, secret string) *HMAC {
+    var hm *HMAC
+    if len(pool) > 0 {
+        for _, hm = range pool {
+            if hm.crypto == c && hm.secret == secret {
+                return hm
+            }
+        }
+    }
 
-    return &HMAC{
+    h := hmac.New(c.New, []byte(secret))
+    hm = &HMAC{
         secret: secret,
         crypto: c,
         hash:   h,
         size:   h.Size(),
     }
+
+    pool = append(pool, hm)
+
+    return hm
 }
 
 // String returns the signing method name
