@@ -2,7 +2,7 @@ package server
 
 import (
     "crypto/tls"
-    "fmt"
+    "errors"
     "net"
     "net/http"
     "time"
@@ -10,8 +10,7 @@ import (
 
 type Server struct {
     *http.Server
-    listener  net.Listener
-    errorChan chan error
+    listener net.Listener
 }
 
 var cluster = make([]*Server, 0, 2)
@@ -34,7 +33,6 @@ func NewServer(addr string, handler http.Handler) *Server {
             BaseContext:       nil,
             ConnContext:       nil,
         },
-        errorChan: make(chan error),
     }
 
     cluster = append(cluster, srv)
@@ -87,7 +85,7 @@ func (srv *Server) getListener() (err error) {
     }
 
     if err != nil {
-        return fmt.Errorf("net.Listen error: %v", err)
+        return errors.New("net.Listen error: " + err.Error())
     }
 
     return
