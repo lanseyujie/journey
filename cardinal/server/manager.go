@@ -2,7 +2,6 @@ package server
 
 import (
     "context"
-    "flag"
     "log"
     "os"
     "os/signal"
@@ -10,8 +9,15 @@ import (
     "time"
 )
 
+const (
+    FlagDaemon   = "CARDINAL_FLAG_DAEMON"
+    FlagGraceful = "CARDINAL_FLAG_GRACEFUL"
+)
+
 type Manager struct {
     timeout   time.Duration
+    logFile   string
+    pidFile   *PidFile
     service   []Service
     errorChan chan error
 }
@@ -22,20 +28,26 @@ type Service interface {
 }
 
 var (
-    flagDaemon bool
-    daemon     bool
-    status     bool
-    stop       bool
-    restart    bool
-    manager    *Manager
+    flagDaemon     bool
+    flagGraceful   bool
+    flagRestart    bool
+    commandSupport = []string{"-d", "status", "stop", "restart", "reload"}
+    command        string
+    manager        *Manager
 )
 
 func init() {
-    flagDaemon = os.Getenv("CARDINAL_FLAG_DAEMON") == "true"
-    flag.BoolVar(&daemon, "d", false, "daemon")
-    flag.BoolVar(&status, "status", false, "status")
-    flag.BoolVar(&stop, "stop", false, "stop")
-    flag.BoolVar(&restart, "reload", false, "restart")
+    flagDaemon = os.Getenv(FlagDaemon) == "true"
+    flagGraceful = os.Getenv(FlagGraceful) == "true"
+
+    for _, arg := range os.Args[1:] {
+        for _, cmd := range commandSupport {
+            if arg == cmd {
+                command = cmd
+                break
+            }
+        }
+    }
 }
 
 // NewManager
@@ -44,12 +56,8 @@ func NewManager() *Manager {
         return manager
     }
 
-    if !flag.Parsed() {
-        flag.Parse()
-    }
-
     manager = &Manager{
-        timeout:   5 * time.Second,
+        timeout:   2 * time.Second,
         errorChan: make(chan error),
     }
 
@@ -63,6 +71,13 @@ func (m *Manager) SetTimeOut(d time.Duration) *Manager {
     return m
 }
 
+// LogFile
+func (m *Manager) LogFile(name string) *Manager {
+    m.logFile = name
+
+    return m
+}
+
 // AddService
 func (m *Manager) AddService(service ...Service) *Manager {
     m.service = append(m.service, service...)
@@ -72,58 +87,63 @@ func (m *Manager) AddService(service ...Service) *Manager {
 
 // Master
 func (m *Manager) Master() {
-    pid, exist := m.process()
-    if daemon {
-        if exist {
-            log.Println("already running, pid:", pid)
+    isDaemon := os.Getppid() == 1
+    pid, err := m.process()
+    if err != nil {
+        log.Println("daemon: ", err)
+
+        return
+    }
+
+    if command == "-d" {
+        if pid > 0 {
+            log.Println("daemon: already running, pid is", pid)
         } else if flagDaemon {
-            _ = syscall.Chdir("/")
+            // comment for restart issue here
+            // _ = syscall.Chdir("/")
             syscall.Umask(0)
             m.Worker()
         } else {
-            // TODO:// log file
-            err := m.daemon("error.log")
+            err = m.daemon()
             if err != nil {
-                log.Println("daemon error:", err)
-                os.Exit(-1)
+                log.Println("daemon:", err)
             }
         }
-    } else if status {
-        if exist {
-            log.Println("already running, pid:", pid)
-        } else {
-            log.Println("process is not running")
-        }
-    } else if stop {
-        if exist {
-            err := syscall.Kill(pid, syscall.SIGTERM)
-            if err != nil {
-                log.Println("syscall.Kill error:", err)
-                os.Exit(-1)
+    } else if !isDaemon {
+        if command == "status" {
+            if pid > 0 {
+                log.Println("daemon: already running, pid is", pid)
+            } else {
+                log.Println("daemon: process is not running")
             }
-        } else {
-            log.Println("process is not running")
-        }
-    } else if restart {
-        if exist {
-            err := syscall.Kill(pid, syscall.SIGTERM)
-            if err != nil {
-                log.Println("syscall.Kill error:", err)
-                os.Exit(-1)
+        } else if command == "stop" {
+            if pid > 0 {
+                err := syscall.Kill(pid, syscall.SIGTERM)
+                if err != nil {
+                    log.Println("daemon: syscall.Kill", err)
+                }
+            } else {
+                log.Println("daemon: process is not running")
             }
-
-            // TODO:// log file
-            err = m.daemon("error.log")
-            if err != nil {
-                log.Println("daemon error:", err)
-                os.Exit(-1)
+        } else if command == "restart" {
+            if pid > 0 {
+                err = syscall.Kill(pid, syscall.SIGUSR1)
+                if err != nil {
+                    log.Println("daemon: syscall.Kill", err)
+                }
+            } else {
+                log.Println("daemon: process is not running")
             }
         } else {
-            log.Println("process is not running")
+            if pid > 0 {
+                log.Println("daemon: already running, pid is", pid)
+            } else {
+                m.Worker()
+            }
         }
-    } else {
-        m.Worker()
     }
+
+    log.Println("daemon: exited, pid:", os.Getpid())
 }
 
 // Worker
@@ -136,8 +156,18 @@ func (m *Manager) Worker() {
 
     select {
     case err := <-m.errorChan:
-        log.Println("exited, error:", err)
-        os.Exit(0)
+        if m.pidFile != nil {
+            _ = m.pidFile.Release()
+        }
+        if err != nil {
+            log.Println("daemon: error:", err)
+        }
+        if flagRestart {
+            err = m.daemon()
+            if err != nil {
+                log.Println("daemon: restart,", err)
+            }
+        }
     }
 }
 
@@ -157,38 +187,57 @@ func (m *Manager) shutdown() {
 // handleSignal
 func (m *Manager) handleSignal() {
     ch := make(chan os.Signal, 1)
-    signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-
+    signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGUSR1, syscall.SIGUSR2)
     for {
         sig := <-ch
         switch sig {
         case syscall.SIGINT, syscall.SIGTERM:
             log.Println("Received SIGINT or SIGTERM. exiting.")
             m.shutdown()
+        case syscall.SIGHUP:
+            log.Println("Received SIGHUP. reloading.")
+            // m.graceful()
+        case syscall.SIGUSR1:
+            log.Println("Received SIGUSR1. restarting.")
+            m.restart()
         default:
             log.Println("Received", sig, ": ignored.")
         }
     }
 }
 
-func (m *Manager) process() (int, bool) {
-    // TODO:// pid file
-    return 0, false
-}
-
-func (m *Manager) daemon(filename string) (err error) {
-    if os.Getppid() == 1 {
-        err = os.Setenv("CARDINAL_FLAG_DAEMON", "true")
+// process
+func (m *Manager) process() (pid int, err error) {
+    m.pidFile, err = NewPidFile("/tmp/cardinal.pid")
+    if err != nil {
+        return
     }
 
-    var stdin, stdout, stderr, nullFile, logFile *os.File
+    err = m.pidFile.Lock()
+    if err != nil {
+        // already running
+        if err == ErrResourceUnavailable {
+            return m.pidFile.Read()
+        }
+
+        return
+    }
+
+    err = m.pidFile.Write()
+
+    return
+}
+
+// stdFile
+func (m *Manager) stdFile() (stdin, stdout, stderr *os.File, err error) {
+    var nullFile, logFile *os.File
     nullFile, err = os.Open(os.DevNull)
     if err != nil {
         return
     }
 
-    if filename != "" {
-        logFile, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+    if m.logFile != "" {
+        logFile, err = os.OpenFile(m.logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
         if err != nil {
             return
         }
@@ -201,6 +250,24 @@ func (m *Manager) daemon(filename string) (err error) {
         stderr = nullFile
     }
 
+    return
+}
+
+// daemon
+func (m *Manager) daemon() (err error) {
+    if os.Getppid() == 1 {
+        err = os.Setenv(FlagDaemon, "true")
+        if err != nil {
+            return
+        }
+    }
+
+    var stdin, stdout, stderr *os.File
+    stdin, stdout, stderr, err = m.stdFile()
+    if err != nil {
+        return
+    }
+
     dir, _ := os.Getwd()
     procAttr := &syscall.ProcAttr{
         Dir:   dir,
@@ -211,14 +278,14 @@ func (m *Manager) daemon(filename string) (err error) {
         },
     }
 
-    // var pid int
     _, err = syscall.ForkExec(os.Args[0], os.Args, procAttr)
-    // hide process name
-    // pid, err = syscall.ForkExec(os.Args[0], []string{""}, procAttr)
-    if err != nil {
-        return
-    }
 
-    // TODO:// save(pid)
     return
+}
+
+// restart
+func (m *Manager) restart() {
+    flagRestart = true
+
+    m.shutdown()
 }
