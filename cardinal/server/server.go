@@ -2,9 +2,13 @@ package server
 
 import (
     "crypto/tls"
+    "encoding/json"
     "errors"
+    "log"
     "net"
     "net/http"
+    "os"
+    "syscall"
     "time"
 )
 
@@ -78,14 +82,42 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 
 // getListener
 func (srv *Server) getListener() (err error) {
-    if srv.TLSConfig == nil {
-        srv.listener, err = net.Listen("tcp", srv.Addr)
-    } else {
-        srv.listener, err = tls.Listen("tcp", srv.Addr, srv.TLSConfig)
+    if flagGraceful {
+        addrs := make([]string, 0)
+        decoder := json.NewDecoder(os.Stdin)
+        err := decoder.Decode(&addrs)
+        if err != nil {
+            log.Println("server: decoder.Decode error,", err)
+        }
+
+        for index, addr := range addrs {
+            if addr == srv.Addr {
+                f := os.NewFile(uintptr(3+index), "")
+                srv.listener, err = net.FileListener(f)
+                if err != nil {
+                    log.Println("server: net.FileListener error,", err)
+
+                    break
+                }
+
+                // to update the tls configuration
+                srv.listener = tls.NewListener(srv.listener, srv.TLSConfig)
+
+                break
+            }
+        }
+    }
+
+    if srv.listener == nil {
+        if srv.TLSConfig == nil {
+            srv.listener, err = net.Listen("tcp", srv.Addr)
+        } else {
+            srv.listener, err = tls.Listen("tcp", srv.Addr, srv.TLSConfig)
+        }
     }
 
     if err != nil {
-        return errors.New("net.Listen error: " + err.Error())
+        return errors.New("server: net.Listen error," + err.Error())
     }
 
     return
@@ -94,6 +126,11 @@ func (srv *Server) getListener() (err error) {
 // Serve
 func (srv *Server) Serve() (err error) {
     err = srv.getListener()
+    if err != nil {
+        return
+    }
+
+    err = syscall.Kill(os.Getppid(), syscall.SIGTERM)
     if err != nil {
         return
     }
