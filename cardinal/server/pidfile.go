@@ -44,8 +44,13 @@ func (pf *PidFile) Unlock() (err error) {
     return
 }
 
-// Write pid to the file
-func (pf *PidFile) Write() (err error) {
+// Set writes current pid to file
+func (pf *PidFile) Set() (err error) {
+    err = pf.Lock()
+    if err != nil {
+        return
+    }
+
     _, err = pf.Seek(0, io.SeekStart)
     if err != nil {
         return
@@ -65,14 +70,22 @@ func (pf *PidFile) Write() (err error) {
     return pf.Sync()
 }
 
-// Read pid from thd file
-func (pf *PidFile) Read() (pid int, err error) {
-    _, err = pf.Seek(0, io.SeekStart)
+// Get the running pid
+func (pf *PidFile) Get() (pid int, err error) {
+    err = pf.Lock()
     if err != nil {
-        return
+        // already running
+        if err == ErrResourceUnavailable {
+            _, err = pf.Seek(0, io.SeekStart)
+            if err != nil {
+                return
+            }
+            _, err = fmt.Fscan(pf.File, &pid)
+            if err == io.EOF {
+                err = nil
+            }
+        }
     }
-
-    _, err = fmt.Fscan(pf.File, &pid)
 
     return
 }
