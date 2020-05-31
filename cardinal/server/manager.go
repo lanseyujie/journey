@@ -362,21 +362,19 @@ func (m *Manager) graceful() {
         _ = rPipe.Close()
         _ = wPipe.Close()
     }()
+    stdin = rPipe
 
-    stdin, stdout, stderr, err = m.stdFile()
+    _, stdout, stderr, err = m.stdFile()
     if err != nil {
         log.Println("graceful:", err)
 
         return
     }
-    defer func() {
-        _ = stdin.Close()
-        _ = stdout.Close()
-        _ = stderr.Close()
-    }()
+
+    // do not close std files, prevent restart command to quit the process due to graceful reload failure
 
     addrs := make([]string, 0, 2)
-    files := []uintptr{rPipe.Fd(), stdout.Fd(), stderr.Fd()}
+    files := []uintptr{stdin.Fd(), stdout.Fd(), stderr.Fd()}
     for _, srv := range cluster {
         ln, ok := srv.listener.(*net.TCPListener)
         if !ok {
