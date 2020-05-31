@@ -198,7 +198,7 @@ func (m *Manager) Worker() {
         go s.Handler(m.errorChan)
     }
 
-    // update pid to file
+    // successful start, update pid to file
     go func() {
         if flagGraceful {
             err := syscall.Kill(os.Getppid(), syscall.SIGTERM)
@@ -271,7 +271,6 @@ func (m *Manager) handleSignal() {
             m.graceful()
         case syscall.SIGCHLD:
             log.Println("Received SIGCHLD. cleaning.")
-            // TODO:// clean up the child process that failed to reload
         case syscall.SIGUSR1:
             log.Println("Received SIGUSR1. restarting.")
             m.restart()
@@ -408,12 +407,24 @@ func (m *Manager) graceful() {
         },
     }
 
-    _, err = syscall.ForkExec(os.Args[0], os.Args, procAttr)
+    var pid int
+    pid, err = syscall.ForkExec(os.Args[0], os.Args, procAttr)
     if err != nil {
         log.Println("graceful: syscall.ForkExec,", err)
 
         return
     }
+
+    go func() {
+        proc, err := os.FindProcess(pid)
+        if err == nil {
+            // if the child process exits abnormally, the child process will be killed,
+            // otherwise, the parent process will be killed
+            _, _ = proc.Wait()
+        }
+        _ = syscall.Kill(pid, syscall.SIGKILL)
+        _ = os.Unsetenv(FlagGraceful)
+    }()
 
     // send server order list to child process
     encoder := json.NewEncoder(wPipe)

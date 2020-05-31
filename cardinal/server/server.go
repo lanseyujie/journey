@@ -80,7 +80,7 @@ func (srv *Server) ListenAndServeTLS(certFile, keyFile string) (err error) {
 // getListener
 func (srv *Server) getListener() (err error) {
     if flagGraceful {
-        for index, addr := range addrs {
+        for index, addr := range addrOrder {
             if addr == srv.Addr {
                 f := os.NewFile(uintptr(3+index), "")
                 srv.listener, err = net.FileListener(f)
