@@ -1,5 +1,10 @@
 package mailer
 
+import (
+    "mime"
+    "regexp"
+)
+
 type Addressee struct {
     Name    string
     Address string
@@ -34,6 +39,18 @@ type Mail struct {
     Boundary     string
 }
 
+var IsAddress = regexp.MustCompile(`^(?i)[a-z0-9._%+-]+@(?:[a-z0-9-]+\.)+[a-z]{2,6}$`)
+
 func NewMail() *Mail {
     return &Mail{}
+}
+
+// String
+func (addr *Addressee) String() string {
+    if IsAddress.MatchString(addr.Address) {
+        return mime.BEncoding.Encode("utf-8", addr.Name) + " <" + addr.Address + ">"
+    }
+    // return "\"" + mime.BEncoding.Encode("utf-8", addr.Name) + "\" <" + addr.Address + ">"
+
+    return ""
 }
