@@ -231,7 +231,7 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
             pattern = regexp.MustCompile(`^[\d]+$`)
         } else if s == "name" {
             key = "name"
-            pattern = regexp.MustCompile(`^[\w]+$`)
+            pattern = regexp.MustCompile(`^[\w-]+$`)
         } else {
             a := strings.Index(s, "(")
             b := strings.LastIndex(s, ")")
@@ -255,7 +255,7 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
         if key == "id" {
             pattern = regexp.MustCompile(`^[\d]+$`)
         } else if key == "name" {
-            pattern = regexp.MustCompile(`^[\w]+$`)
+            pattern = regexp.MustCompile(`^[\w-]+$`)
         } else if key[len(key)-1:] == "*" {
             // {*}, {static*}
             isWildcard = true
