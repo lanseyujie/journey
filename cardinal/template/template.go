@@ -214,7 +214,7 @@ func (tpl *Template) Render(wr io.Writer, name string, data interface{}) (err er
         panic("template file not found:" + tpl.name + "/" + name)
     }
 
-    panic("theme not found:" + name)
+    panic("theme not found:" + tpl.name)
 }
 
 // Render
