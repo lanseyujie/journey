@@ -144,7 +144,7 @@ func (m *Mail) parseHeader(buffer *bytes.Buffer) {
     }
 
     if isMultiPart {
-        header += "Content-Type: " + typ + "; Boundary=\"" + m.getBoundary() + "\"; charset=UTF-8" + CRLF
+        header += "Content-Type: " + typ + "; boundary=\"" + m.getBoundary() + "\"; charset=UTF-8" + CRLF
         header += "Content-Transfer-Encoding: 8bit" + CRLF
     } else {
         header += "Content-Type: " + typ + "; charset=UTF-8" + CRLF
@@ -201,13 +201,24 @@ func (m *Mail) parseAttachment(buffer *bytes.Buffer) {
                 }
             }
 
-            if att.IsInline && att.Name == "" {
-                att.Name = att.ContentId + ext
+            filename := ""
+            if att.Name == "" {
+                if att.IsInline {
+                    filename = att.ContentId + ext
+                } else {
+                    filename = mime.BEncoding.Encode("utf-8", filepath.Base(att.FilePath))
+                }
+            } else {
+                if strings.HasSuffix(att.Name, ext) {
+                    filename = mime.BEncoding.Encode("utf-8", att.Name)
+                } else {
+                    filename = mime.BEncoding.Encode("utf-8", att.Name+ext)
+                }
             }
 
             header := CRLF
             header += "--" + m.boundary + CRLF
-            header += "Content-Type: " + att.MimeType + "; name=\"" + att.Name + "\"" + CRLF
+            header += "Content-Type: " + att.MimeType + "; name=\"" + filename + "\"" + CRLF
             header += "Content-Transfer-Encoding: base64" + CRLF
 
             if att.Description != "" {
@@ -215,10 +226,10 @@ func (m *Mail) parseAttachment(buffer *bytes.Buffer) {
             }
 
             if att.IsInline {
-                header += "Content-Id: <" + att.ContentId + ">" + CRLF
-                header += "Content-Disposition: inline; filename=\"" + att.Name + "\"" + CRLF
+                header += "Content-ID: <" + att.ContentId + ">" + CRLF
+                header += "Content-Disposition: inline; filename=\"" + filename + "\"" + CRLF
             } else {
-                header += "Content-Disposition: attachment; filename=\"" + att.Name + "\"" + CRLF
+                header += "Content-Disposition: attachment; filename=\"" + filename + "\"" + CRLF
             }
 
             header += CRLF
