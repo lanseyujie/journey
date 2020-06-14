@@ -1,26 +1,69 @@
 package dao
 
 import (
+    "context"
     "database/sql"
+    "errors"
     "fmt"
     "time"
 )
 
 type Dao struct {
-    isTx bool
+    ctx context.Context
+    tx  *sql.Tx
 }
 
 type Result []map[string]interface{}
 
-func NewDao() *Dao {
-    return &Dao{}
+// NewDao
+func NewDao(ctx ...context.Context) *Dao {
+    var c context.Context
+    if len(ctx) == 1 {
+        c = ctx[0]
+    } else {
+        c = context.Background()
+    }
+
+    return &Dao{
+        ctx: c,
+    }
+}
+
+// Begin
+func (dao *Dao) Begin(opts *sql.TxOptions) error {
+    tx, err := db.BeginTx(dao.ctx, opts)
+    if err != nil {
+        return err
+    }
+
+    dao.tx = tx
+
+    return nil
+}
+
+// Rollback
+func (dao *Dao) Rollback() error {
+    if dao.tx != nil {
+        return dao.tx.Rollback()
+    } else {
+        return errors.New("dao: transaction not started")
+    }
+}
+
+// Commit
+func (dao *Dao) Commit() error {
+    if dao.tx != nil {
+        return dao.tx.Commit()
+    } else {
+        return errors.New("dao: transaction not started")
+    }
 }
 
 // Exec
 func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
     var stmt *sql.Stmt
-    if dao.isTx {
-        stmt, err = tx.Prepare(preSql)
+    if dao.tx != nil {
+        stmt, err = dao.tx.Prepare(preSql)
         if err != nil {
             return
         }
@@ -32,7 +75,7 @@ func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
     }
     defer stmt.Close()
 
-    _, err = stmt.Exec(params...)
+    _, err = stmt.ExecContext(dao.ctx, params...)
 
     return
 }
@@ -45,8 +88,8 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err 
         cols []string
     )
 
-    if dao.isTx {
-        stmt, err = tx.Prepare(preSql)
+    if dao.tx != nil {
+        stmt, err = dao.tx.Prepare(preSql)
         if err != nil {
             return
         }
@@ -58,7 +101,7 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err 
     }
     defer stmt.Close()
 
-    rows, err = stmt.Query(params...)
+    rows, err = stmt.QueryContext(dao.ctx, params...)
     if err != nil {
         return
     }
@@ -98,8 +141,8 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err 
 // QueryRow
 func (dao *Dao) QueryRow(preSql string, params []interface{}, values ...interface{}) (err error) {
     var stmt *sql.Stmt
-    if tx != nil {
-        stmt, err = tx.Prepare(preSql)
+    if dao.tx != nil {
+        stmt, err = dao.tx.Prepare(preSql)
         if err != nil {
             return
         }
@@ -111,7 +154,7 @@ func (dao *Dao) QueryRow(preSql string, params []interface{}, values ...interfac
     }
     defer stmt.Close()
 
-    row := stmt.QueryRow(params...)
+    row := stmt.QueryRowContext(dao.ctx, params...)
     err = row.Scan(values...)
 
     return

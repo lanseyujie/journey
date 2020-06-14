@@ -20,7 +20,6 @@ type MySql struct {
 
 var (
     db    *sql.DB
-    tx    *sql.Tx
     mysql *MySql
 )
 
