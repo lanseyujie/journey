@@ -95,6 +95,28 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err 
     return
 }
 
+// QueryRow
+func (dao *Dao) QueryRow(preSql string, params []interface{}, values ...interface{}) (err error) {
+    var stmt *sql.Stmt
+    if tx != nil {
+        stmt, err = tx.Prepare(preSql)
+        if err != nil {
+            return
+        }
+    } else {
+        stmt, err = db.Prepare(preSql)
+        if err != nil {
+            return
+        }
+    }
+    defer stmt.Close()
+
+    row := stmt.QueryRow(params...)
+    err = row.Scan(values...)
+
+    return
+}
+
 // String
 func (data Result) String() string {
     if len(data) <= 0 {
