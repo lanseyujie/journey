@@ -15,6 +15,8 @@ type Dao struct {
 
 type Result []map[string]interface{}
 
+var ErrTransNotStart = errors.New("dao: transaction not started")
+
 // NewDao
 func NewDao(ctx ...context.Context) *Dao {
     var c context.Context
@@ -46,7 +48,7 @@ func (dao *Dao) Rollback() error {
     if dao.tx != nil {
         return dao.tx.Rollback()
     } else {
-        return errors.New("dao: transaction not started")
+        return ErrTransNotStart
     }
 }
 
@@ -55,7 +57,7 @@ func (dao *Dao) Commit() error {
     if dao.tx != nil {
         return dao.tx.Commit()
     } else {
-        return errors.New("dao: transaction not started")
+        return ErrTransNotStart
     }
 }
 
@@ -76,6 +78,32 @@ func (dao *Dao) Exec(preSql string, params ...interface{}) (ret sql.Result, err 
     defer stmt.Close()
 
     return stmt.ExecContext(dao.ctx, params...)
+}
+
+// ExecMulti used to insert multiple data at once
+func (dao *Dao) ExecMulti(preSql string, params ...[]interface{}) (err error) {
+    var stmt *sql.Stmt
+    if dao.tx != nil {
+        stmt, err = dao.tx.Prepare(preSql)
+        if err != nil {
+            return
+        }
+    } else {
+        stmt, err = db.Prepare(preSql)
+        if err != nil {
+            return
+        }
+    }
+    defer stmt.Close()
+
+    for _, p := range params {
+        _, err = stmt.ExecContext(dao.ctx, p...)
+        if err != nil {
+            return
+        }
+    }
+
+    return
 }
 
 // Query
@@ -132,6 +160,8 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err 
         }
         result = append(result, values)
     }
+
+    err = rows.Err()
 
     return
 }
