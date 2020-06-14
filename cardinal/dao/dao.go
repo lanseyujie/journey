@@ -60,7 +60,7 @@ func (dao *Dao) Commit() error {
 }
 
 // Exec
-func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
+func (dao *Dao) Exec(preSql string, params ...interface{}) (ret sql.Result, err error) {
     var stmt *sql.Stmt
     if dao.tx != nil {
         stmt, err = dao.tx.Prepare(preSql)
@@ -75,9 +75,7 @@ func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
     }
     defer stmt.Close()
 
-    _, err = stmt.ExecContext(dao.ctx, params...)
-
-    return
+    return stmt.ExecContext(dao.ctx, params...)
 }
 
 // Query
