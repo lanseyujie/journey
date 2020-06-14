@@ -2,7 +2,6 @@ package dao
 
 import (
     "database/sql"
-    "strings"
 )
 
 type Dao struct {
@@ -19,7 +18,6 @@ func NewDao(table string) *Dao {
 // Exec
 func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
     var stmt *sql.Stmt
-    preSql = strings.TrimSpace(preSql)
     if dao.isTx {
         stmt, err = tx.Prepare(preSql)
         if err != nil {
@@ -46,7 +44,6 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result []map[string
         cols []string
     )
 
-    preSql = strings.TrimSpace(preSql)
     if dao.isTx {
         stmt, err = tx.Prepare(preSql)
         if err != nil {
@@ -73,30 +70,25 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result []map[string
     }
 
     count := len(cols)
-    // store the value of each field in a row
-    row := make([]sql.RawBytes, count)
-    scans := make([]interface{}, count)
-    // let each row of data be filled in []sql.RawBytes
-    for i := range row {
-        scans[i] = &row[i]
-    }
-
+    // iterate over each row
     for rows.Next() {
-        // scans[i] = &values[i]
-        err = rows.Scan(scans...)
-        if err == nil {
-            // a row of data, column => value
-            values := make(map[string]interface{})
-            for i, v := range row {
-                if v != nil {
-                    values[cols[i]] = string(v)
-                } else {
-                    // SQL NULL
-                    values[cols[i]] = nil
-                }
-            }
-            result = append(result, values)
+        // store the value of each field in a row
+        row := make([]interface{}, count)
+        for i := range row {
+            row[i] = new(interface{})
         }
+
+        err = rows.Scan(row...)
+        if err != nil {
+            return
+        }
+
+        // a row of data, column => value
+        values := make(map[string]interface{}, count)
+        for index, col := range cols {
+            values[col] = row[index]
+        }
+        result = append(result, values)
     }
 
     return
