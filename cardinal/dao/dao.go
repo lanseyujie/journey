@@ -2,17 +2,18 @@ package dao
 
 import (
     "database/sql"
+    "fmt"
+    "time"
 )
 
 type Dao struct {
-    isTx  bool
-    table string
+    isTx bool
 }
 
-func NewDao(table string) *Dao {
-    return &Dao{
-        table: table,
-    }
+type Result []map[string]interface{}
+
+func NewDao() *Dao {
+    return &Dao{}
 }
 
 // Exec
@@ -37,7 +38,7 @@ func (dao *Dao) Exec(preSql string, params ...interface{}) (err error) {
 }
 
 // Query
-func (dao *Dao) Query(preSql string, params ...interface{}) (result []map[string]interface{}, err error) {
+func (dao *Dao) Query(preSql string, params ...interface{}) (result Result, err error) {
     var (
         stmt *sql.Stmt
         rows *sql.Rows
@@ -92,4 +93,39 @@ func (dao *Dao) Query(preSql string, params ...interface{}) (result []map[string
     }
 
     return
+}
+
+// String
+func (data Result) String() string {
+    if len(data) <= 0 {
+        return ""
+    }
+
+    str := ""
+    cols := make([]string, len(data[0]))
+    for col := range data[0] {
+        cols = append(cols, col)
+    }
+
+    for _, row := range data {
+        for _, col := range cols {
+            if val, exist := row[col]; exist {
+                str += col + ":"
+                switch v := (*(val.(*interface{}))).(type) {
+                case nil:
+                    str += "NULL"
+                case []byte:
+                    str += string(v)
+                case time.Time:
+                    str += v.Format("2006-01-02 15:04:05.000")
+                default:
+                    str += fmt.Sprint(v)
+                }
+                str += "\t"
+            }
+        }
+        str += "\n"
+    }
+
+    return str
 }
