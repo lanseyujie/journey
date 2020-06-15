@@ -183,9 +183,8 @@ func (dao *Dao) QueryRow(preSql string, params []interface{}, values ...interfac
     defer stmt.Close()
 
     row := stmt.QueryRowContext(dao.ctx, params...)
-    err = row.Scan(values...)
 
-    return
+    return row.Scan(values...)
 }
 
 // String
@@ -195,7 +194,7 @@ func (data Result) String() string {
     }
 
     str := ""
-    cols := make([]string, len(data[0]))
+    cols := make([]string, 0, len(data[0]))
     for col := range data[0] {
         cols = append(cols, col)
     }

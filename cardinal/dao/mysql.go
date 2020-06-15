@@ -3,19 +3,19 @@ package dao
 import (
     "database/sql"
     _ "github.com/go-sql-driver/mysql"
+    "net/url"
     "strconv"
     "time"
 )
 
 type MySql struct {
-    host      string
-    port      uint
-    username  string
-    password  string
-    database  string
-    prefix    string
-    charset   string
-    collation string
+    host     string
+    port     uint
+    username string
+    password string
+    database string
+    prefix   string
+    params   map[string]string
 }
 
 var (
@@ -24,44 +24,38 @@ var (
 )
 
 // NewMySql
-// host, port, username, password, database, prefix, charset, collation
-func NewMySql(host string, port uint, username, password, database string, params ...string) *MySql {
+// host, port, username, password, database, prefix, charset, collation, parseTime
+func NewMySql(host string, port uint, username, password, database, prefix string, params map[string]string) *MySql {
     if mysql != nil {
         mysql.Close()
     }
 
-    prefix := ""
-    charset := "utf8mb4"
-    collation := "utf8mb4_general_ci"
-    if len(params) > 0 {
-        for i, val := range params {
-            if val != "" {
-                if i == 0 {
-                    prefix = val
-                } else if i == 1 {
-                    charset = val
-                } else if i == 2 {
-                    collation = val
-                }
-            }
-        }
-    }
-
     return &MySql{
-        host:      host,
-        port:      port,
-        username:  username,
-        password:  password,
-        database:  database,
-        prefix:    prefix,
-        charset:   charset,
-        collation: collation,
+        host:     host,
+        port:     port,
+        username: username,
+        password: password,
+        database: database,
+        prefix:   prefix,
+        params:   params,
     }
 }
 
 // GetDsn
 func (ms *MySql) GetDsn() string {
-    return ms.username + ":" + ms.password + "@tcp(" + ms.host + ":" + strconv.FormatInt(int64(ms.port), 10) + ")/" + ms.database + "?charset=" + ms.charset + "&collation=" + ms.collation
+    values := make(url.Values)
+    for key, val := range ms.params {
+        values.Set(key, val)
+    }
+
+    u := url.URL{
+        User:     url.UserPassword(ms.username, ms.password),
+        Host:     "tcp(" + ms.host + ":" + strconv.FormatInt(int64(ms.port), 10) + ")",
+        Path:     ms.database,
+        RawQuery: values.Encode(),
+    }
+
+    return u.String()[len("//"):]
 }
 
 // GetDsn
@@ -90,4 +84,12 @@ func (ms *MySql) Close() {
     if db != nil {
         _ = db.Close()
     }
+}
+
+func Db() *sql.DB {
+    return db
+}
+
+func Mysql() *MySql {
+    return mysql
 }
