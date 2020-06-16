@@ -10,6 +10,11 @@ func Html(str string) template.HTML {
     return template.HTML(str)
 }
 
+// String
+func String(bytes []byte) string {
+    return string(bytes)
+}
+
 // DateFormat
 func DateFormat(t time.Time, layout string) string {
     return t.Format(layout)

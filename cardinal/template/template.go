@@ -32,6 +32,7 @@ var (
 
 func init() {
     AddFuncMap("html", Html)
+    AddFuncMap("string", String)
     AddFuncMap("dateformat", DateFormat)
     AddFuncMap("substr", Substr)
 }
