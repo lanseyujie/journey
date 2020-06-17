@@ -201,8 +201,8 @@ func (ctx *Context) StatusCode(code int) {
 // Redirect response
 func (ctx *Context) Redirect(code int, url string) {
     if 300 < code && code < 400 {
-        ctx.StatusCode(code)
         ctx.Output.Header().Set("Location", url)
+        ctx.StatusCode(code)
     }
 }
 
@@ -248,12 +248,12 @@ func (ctx *Context) Cors(domain []string) {
     }
 
     if allow {
-        ctx.StatusCode(http.StatusNoContent)
         ctx.Output.Header().Set("Access-Control-Allow-Origin", origin)
         if ctx.Input.Method == http.MethodOptions {
             ctx.Output.Header().Set("Access-Control-Allow-Methods", strings.Join(method, ", "))
             ctx.Output.Header().Set("Access-Control-Allow-Headers", ctx.Input.Header.Get("Access-Control-Request-Headers"))
         }
+        ctx.StatusCode(http.StatusNoContent)
     }
 }
 
