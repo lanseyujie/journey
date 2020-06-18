@@ -111,7 +111,7 @@ func (m *MySql) GetColumnSqlType(typ reflect.Value) string {
         }
     }
 
-    panic(fmt.Sprintf(" %s (%s)", typ.Type().Name(), typ.Kind()))
+    panic(fmt.Sprintf("orm: unsupported type %s in model %s", typ.Kind(), typ.Type().Name()))
 }
 
 // TableExistSql
