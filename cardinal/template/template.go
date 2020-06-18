@@ -35,6 +35,10 @@ func init() {
     AddFuncMap("string", String)
     AddFuncMap("dateformat", DateFormat)
     AddFuncMap("substr", Substr)
+    AddFuncMap("add", Add)
+    AddFuncMap("sub", Subtract)
+    AddFuncMap("mul", Multiply)
+    AddFuncMap("div", Divide)
 }
 
 // NewTemplate

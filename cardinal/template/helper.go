@@ -40,3 +40,51 @@ func Substr(s string, start, length int) string {
 
     return string(chars[start:end])
 }
+
+// Add
+func Add(nums ...int) (ret int) {
+    for _, num := range nums {
+        ret += num
+    }
+
+    return
+}
+
+// Subtract
+func Subtract(nums ...int) (ret int) {
+    for index, num := range nums {
+        if index == 0 {
+            ret = num
+        } else {
+            ret -= num
+        }
+    }
+
+    return
+}
+
+// Multiply
+func Multiply(nums ...int) (ret int) {
+    for index, num := range nums {
+        if index == 0 {
+            ret = num
+        } else {
+            ret *= num
+        }
+    }
+
+    return
+}
+
+// Divide
+func Divide(nums ...int) (ret int) {
+    for index, num := range nums {
+        if index == 0 {
+            ret = num
+        } else {
+            ret /= num
+        }
+    }
+
+    return
+}
