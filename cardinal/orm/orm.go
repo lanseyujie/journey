@@ -4,6 +4,8 @@ import (
     "context"
     "database/sql"
     "errors"
+    "go/ast"
+    "reflect"
 )
 
 type Orm struct {
@@ -34,9 +36,46 @@ func NewOrm(engine *Engine, ctx context.Context) *Orm {
 
 // ParseModel
 func (orm *Orm) ParseModel(model interface{}) *Table {
-    // TODO://
+    typ := reflect.Indirect(reflect.ValueOf(model)).Type()
+    if typ.Kind() != reflect.Struct {
+        return nil
+    }
 
-    return nil
+    table := &Table{
+        Prefix: orm.engine.dialect.GetTablePrefix(),
+        Name:   typ.Name(),
+        Model:  model,
+    }
+    table.Alias = table.GetAlias()
+
+    for i := 0; i < typ.NumField(); i++ {
+        field := typ.Field(i)
+        if !field.Anonymous && ast.IsExported(field.Name) {
+            column := &Column{
+                Name: field.Name,
+            }
+
+            if value, exist := field.Tag.Lookup("orm"); exist {
+                column.Alias = value
+            } else {
+                column.Alias = column.GetAlias()
+            }
+
+            if value, exist := field.Tag.Lookup("type"); exist {
+                column.Type = value
+            } else {
+                column.Type = orm.engine.dialect.GetColumnSqlType(reflect.Indirect(reflect.New(field.Type)))
+            }
+
+            if value, exist := field.Tag.Lookup("opt"); exist {
+                column.Options = value
+            }
+
+            table.Columns = append(table.Columns, column)
+        }
+    }
+
+    return table
 }
 
 // CreateTable
