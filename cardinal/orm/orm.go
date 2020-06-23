@@ -5,6 +5,7 @@ import (
     "database/sql"
     "errors"
     "go/ast"
+    "journey/cardinal/utils"
     "reflect"
 )
 
@@ -15,13 +16,25 @@ type Orm struct {
 }
 
 var (
-    ErrTransNotStart = errors.New("orm: transaction not started")
+    ErrEngineIsNil     = errors.New("orm: engine is nil")
+    ErrConnIsNotOpen   = errors.New("orm: connection is not open")
+    ErrTransNotStart   = errors.New("orm: transaction not started")
+    ErrUnsupportedType = errors.New("orm: unsupported model type")
+    ErrUnexpectedField = errors.New("orm: unexpected model field")
 )
 
 // NewOrm
-func NewOrm(engine *Engine, ctx context.Context) *Orm {
+func NewOrm(engine *Engine, ctx context.Context) (*Orm, error) {
     if engine == nil {
-        return nil
+        return nil, ErrEngineIsNil
+    }
+
+    if engine.db == nil {
+        return nil, ErrConnIsNotOpen
+    }
+
+    if err := engine.db.Ping(); err != nil {
+        return nil, err
     }
 
     if ctx == nil {
@@ -31,7 +44,7 @@ func NewOrm(engine *Engine, ctx context.Context) *Orm {
     return &Orm{
         engine: engine,
         ctx:    ctx,
-    }
+    }, nil
 }
 
 // ParseModel
@@ -175,14 +188,12 @@ func (orm *Orm) Exec(preSql string, params ...interface{}) (ret sql.Result, err 
     var stmt *sql.Stmt
     if orm.tx != nil {
         stmt, err = orm.tx.Prepare(preSql)
-        if err != nil {
-            return
-        }
     } else {
         stmt, err = orm.engine.db.Prepare(preSql)
-        if err != nil {
-            return
-        }
+    }
+
+    if err != nil {
+        return
     }
     defer stmt.Close()
 
@@ -198,7 +209,68 @@ func (orm *Orm) QueryRow(model interface{}, preSql string, params ...interface{}
 
 // Query
 func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) (err error) {
-    // TODO://
+    var (
+        stmt *sql.Stmt
+        rows *sql.Rows
+        cols []string
+    )
 
-    return
+    rValue := reflect.Indirect(reflect.ValueOf(models))
+    rType := rValue.Type()
+
+    switch rType.Kind() {
+    case reflect.Slice:
+        //
+    case reflect.Struct:
+        return orm.QueryRow(models, preSql, params...)
+    default:
+        return ErrUnsupportedType
+    }
+
+    if orm.tx != nil {
+        stmt, err = orm.tx.Prepare(preSql)
+    } else {
+        stmt, err = orm.engine.db.Prepare(preSql)
+    }
+
+    if err != nil {
+        return
+    }
+    defer stmt.Close()
+
+    rows, err = stmt.QueryContext(orm.ctx, params...)
+    if err != nil {
+        return
+    }
+    defer rows.Close()
+
+    // get the column names of the query
+    cols, err = rows.Columns()
+    if err != nil {
+        return
+    }
+
+    model := reflect.New(rType.Elem()).Elem()
+    // iterate over each row
+    for rows.Next() {
+        var results []interface{}
+        // associated with the query results to model field
+        for _, col := range cols {
+            // TODO:// alias tag
+            field := model.FieldByName(utils.PascalCase(col))
+            if field.IsValid() {
+                results = append(results, field.Addr().Interface())
+            } else {
+                return ErrUnexpectedField
+            }
+        }
+
+        err = rows.Scan(results...)
+        if err != nil {
+            return
+        }
+        rValue.Set(reflect.Append(rValue, model))
+    }
+
+    return rows.Err()
 }
