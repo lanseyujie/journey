@@ -1,6 +1,7 @@
 package orm
 
 import (
+    "journey/cardinal/utils"
     "strings"
 )
 
@@ -18,7 +19,7 @@ func (t *Table) GetAlias() string {
         return t.Alias
     }
 
-    return t.Prefix + UnderScoreCase(t.Name)
+    return t.Prefix + utils.UnderScoreCase(t.Name)
 }
 
 // Create
