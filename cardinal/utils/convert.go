@@ -2,7 +2,7 @@ package utils
 
 import "strings"
 
-// PascalCase member_id => Member_Id
+// PascalCase
 // the format is camel case if lf[0] is true
 // UnderScoreCase: hello_world
 // PascalCase: HelloWorld
@@ -28,7 +28,7 @@ func PascalCase(underscore string, lf ...bool) string {
     return string(cc)
 }
 
-// UnderScoreCase MemberId => member_id
+// UnderScoreCase
 func UnderScoreCase(camel string) string {
     cc := []byte(camel)
     usc := make([]byte, 0, len(cc))
