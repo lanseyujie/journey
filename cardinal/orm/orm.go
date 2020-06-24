@@ -164,6 +164,17 @@ func (orm *Orm) Migrate() {
     // TODO://
 }
 
+// GetStmt
+func (orm *Orm) GetStmt(preSql string) (stmt *sql.Stmt, err error) {
+    if orm.tx != nil {
+        stmt, err = orm.tx.Prepare(preSql)
+    } else {
+        stmt, err = orm.engine.db.Prepare(preSql)
+    }
+
+    return
+}
+
 // Begin
 func (orm *Orm) Begin(opts *sql.TxOptions) error {
     tx, err := orm.engine.db.BeginTx(orm.ctx, opts)
@@ -195,16 +206,10 @@ func (orm *Orm) Commit() error {
 }
 
 // Exec
-func (orm *Orm) Exec(preSql string, params ...interface{}) (ret sql.Result, err error) {
-    var stmt *sql.Stmt
-    if orm.tx != nil {
-        stmt, err = orm.tx.Prepare(preSql)
-    } else {
-        stmt, err = orm.engine.db.Prepare(preSql)
-    }
-
+func (orm *Orm) Exec(preSql string, params ...interface{}) (sql.Result, error) {
+    stmt, err := orm.GetStmt(preSql)
     if err != nil {
-        return
+        return nil, err
     }
     defer stmt.Close()
 
@@ -212,10 +217,16 @@ func (orm *Orm) Exec(preSql string, params ...interface{}) (ret sql.Result, err 
 }
 
 // QueryRow
-func (orm *Orm) QueryRow(model interface{}, preSql string, params ...interface{}) (err error) {
-    // TODO://
+func (orm *Orm) QueryRow(preSql string, params []interface{}, values ...interface{}) error {
+    stmt, err := orm.GetStmt(preSql)
+    if err != nil {
+        return err
+    }
+    defer stmt.Close()
 
-    return
+    row := stmt.QueryRowContext(orm.ctx, params...)
+
+    return row.Scan(values...)
 }
 
 // Query
@@ -228,24 +239,13 @@ func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) 
 
     rValue := reflect.Indirect(reflect.ValueOf(models))
     rType := rValue.Type()
-
-    switch rType.Kind() {
-    case reflect.Slice:
-        //
-    case reflect.Struct:
-        return orm.QueryRow(models, preSql, params...)
-    default:
+    if rType.Kind() != reflect.Slice {
         return ErrUnsupportedType
     }
 
-    if orm.tx != nil {
-        stmt, err = orm.tx.Prepare(preSql)
-    } else {
-        stmt, err = orm.engine.db.Prepare(preSql)
-    }
-
+    stmt, err = orm.GetStmt(preSql)
     if err != nil {
-        return
+        return err
     }
     defer stmt.Close()
 
