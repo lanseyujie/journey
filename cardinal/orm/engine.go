@@ -43,12 +43,16 @@ func (e *Engine) Open() (err error) {
 
 // Close
 func (e *Engine) Close() {
-    if e.db != nil {
+    if e != nil && e.db != nil {
         _ = e.db.Close()
     }
 }
 
 // Db
 func (e *Engine) Db() *sql.DB {
-    return e.db
+    if e != nil && e.db != nil {
+        return e.db
+    }
+
+    return nil
 }

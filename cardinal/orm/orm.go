@@ -48,10 +48,10 @@ func NewOrm(engine *Engine, ctx context.Context) (*Orm, error) {
 }
 
 // ParseModel
-func (orm *Orm) ParseModel(model interface{}) *Table {
+func (orm *Orm) ParseModel(model interface{}) (*Table, error) {
     typ := reflect.Indirect(reflect.ValueOf(model)).Type()
     if typ.Kind() != reflect.Struct {
-        return nil
+        return nil, ErrUnsupportedType
     }
 
     table := &Table{
@@ -88,21 +88,32 @@ func (orm *Orm) ParseModel(model interface{}) *Table {
         }
     }
 
-    return table
+    // TODO:// cache table
+    return table, nil
 }
 
 // CreateTable
 func (orm *Orm) CreateTable(model interface{}) error {
-    // TODO://
+    table, err := orm.ParseModel(model)
+    if err != nil {
+        return err
+    }
 
-    return nil
+    _, err = orm.Exec(table.Create())
+
+    return err
 }
 
 // CreateTable
 func (orm *Orm) DropTable(model interface{}) error {
-    // TODO://
+    table, err := orm.ParseModel(model)
+    if err != nil {
+        return err
+    }
 
-    return nil
+    _, err = orm.Exec(table.Drop())
+
+    return err
 }
 
 // ExistTable
