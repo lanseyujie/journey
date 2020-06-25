@@ -1,6 +1,7 @@
 package utils
 
 import (
+    "fmt"
     "reflect"
     "runtime"
     "strings"
@@ -31,4 +32,22 @@ func GetFunctionName(fn interface{}, seps ...rune) string {
     }
 
     return "???"
+}
+
+// StackTrace
+func StackTrace(err error) string {
+    pc := make([]uintptr, 16)
+    n := runtime.Callers(3, pc)
+    frames := runtime.CallersFrames(pc[:n])
+    str := strings.Builder{}
+    str.WriteString(err.Error() + "\nStackTrace:")
+    for {
+        frame, more := frames.Next()
+        str.WriteString(fmt.Sprintf("\n\t%s:%d %s", frame.File, frame.Line, frame.Function))
+        if !more {
+            break
+        }
+    }
+
+    return str.String()
 }
