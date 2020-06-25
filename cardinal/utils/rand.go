@@ -13,9 +13,12 @@ func RandomBytes(n int, chars ...byte) []byte {
     var bytes = make([]byte, n)
     var flag bool
 
-    if len(chars) == 0 {
+    length := len(chars)
+    if length == 0 {
         chars = alphabet
+        length = len(chars)
     }
+    maxIndex := length - 1
 
     if num, err := rand.Read(bytes); num != n || err != nil {
         rnd.Seed(time.Now().UnixNano())
@@ -24,9 +27,9 @@ func RandomBytes(n int, chars ...byte) []byte {
 
     for i, b := range bytes {
         if flag {
-            bytes[i] = chars[rnd.Intn(len(chars))]
+            bytes[i] = chars[rnd.Intn(maxIndex)]
         } else {
-            bytes[i] = chars[b%byte(len(chars))]
+            bytes[i] = chars[b%byte(maxIndex)]
         }
     }
 
