@@ -5,6 +5,7 @@ import (
     "io"
     "journey/cardinal/log/console"
     "runtime"
+    "strings"
     "time"
 )
 
@@ -92,13 +93,47 @@ func (log *Log) Http(v ...interface{}) {
 // Debug
 func (log *Log) Debug(v ...interface{}) {
     if !log.disable {
-        funcName := "???"
-        pc, file, line, ok := runtime.Caller(1)
-        if ok {
-            funcName = runtime.FuncForPC(pc).Name()
-        }
-        _, _ = log.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d %s %s", file, line, funcName, fmt.Sprintln(v...)))
+        file, line, fn := GetCaller()
+        _, _ = log.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprintln(v...)))
     }
+}
+
+// GetCaller
+func GetCaller() (file string, line int, funcName string) {
+    var (
+        pc uintptr
+        ok bool
+    )
+
+    pc, file, line, ok = runtime.Caller(2)
+    if ok {
+        fn := runtime.FuncForPC(pc).Name()
+        // fn example:
+        // journey/boot.init.0
+        // journey/boot.Route
+        seps := []rune{'/', '.'}
+        fields := strings.FieldsFunc(fn, func(sep rune) bool {
+            for _, s := range seps {
+                if sep == s {
+                    return true
+                }
+            }
+            return false
+        })
+
+        if size := len(fields); size > 0 {
+            if fields[size-2] == "init" {
+                funcName = "init"
+            } else {
+                funcName = fields[size-1]
+            }
+        }
+    } else {
+        file = "???"
+        funcName = "???"
+    }
+
+    return
 }
 
 // SetDefaultLog
@@ -154,11 +189,7 @@ func Http(v ...interface{}) {
 // Debug
 func Debug(v ...interface{}) {
     if !std.disable {
-        funcName := "???"
-        pc, file, line, ok := runtime.Caller(1)
-        if ok {
-            funcName = runtime.FuncForPC(pc).Name()
-        }
-        _, _ = std.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, funcName, fmt.Sprintln(v...)))
+        file, line, fn := GetCaller()
+        _, _ = std.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprintln(v...)))
     }
 }
