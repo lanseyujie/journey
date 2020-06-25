@@ -18,6 +18,11 @@ func NewConsole() *Console {
     }
 }
 
+// StringPurple
+func StringPurple(str string) string {
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 95, 1, str, 0x1B)
+}
+
 // StringBlue
 func StringBlue(str string) string {
     return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 94, 1, str, 0x1B)
@@ -56,6 +61,8 @@ func (c *Console) Write(p []byte) (n int, err error) {
             _, err = fmt.Fprint(os.Stderr, StringRed(msg))
         case "[HTTP]":
             _, err = fmt.Fprint(os.Stdout, StringGreen(msg))
+        case "[DBUG]":
+            _, err = fmt.Fprint(os.Stdout, StringPurple(msg))
         default:
             _, err = fmt.Fprint(os.Stdout, msg)
         }

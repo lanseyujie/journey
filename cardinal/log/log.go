@@ -4,6 +4,7 @@ import (
     "fmt"
     "io"
     "journey/cardinal/log/console"
+    "runtime"
     "time"
 )
 
@@ -44,8 +45,8 @@ func (log *Log) Write(v ...interface{}) (n int, err error) {
     return
 }
 
-// WriteWithPrefix
-func (log *Log) WriteWithPrefix(prefix string, v ...interface{}) (n int, err error) {
+// PrefixWrite
+func (log *Log) PrefixWrite(prefix string, v ...interface{}) (n int, err error) {
     if log.writer != nil {
         n, err = fmt.Fprintf(log.writer, "%s %s %s", prefix, time.Now().Format("2006/01/02 15:04:05.000"), fmt.Sprintln(v...))
     }
@@ -63,28 +64,40 @@ func (log *Log) Println(v ...interface{}) {
 // Info
 func (log *Log) Info(v ...interface{}) {
     if !log.disable {
-        _, _ = log.WriteWithPrefix("[INFO]", v...)
+        _, _ = log.PrefixWrite("[INFO]", v...)
     }
 }
 
 // Warn
 func (log *Log) Warn(v ...interface{}) {
     if !log.disable {
-        _, _ = log.WriteWithPrefix("[WARN]", v...)
+        _, _ = log.PrefixWrite("[WARN]", v...)
     }
 }
 
 // Error
 func (log *Log) Error(v ...interface{}) {
     if !log.disable {
-        _, _ = log.WriteWithPrefix("[ERRO]", v...)
+        _, _ = log.PrefixWrite("[ERRO]", v...)
     }
 }
 
 // Http
 func (log *Log) Http(v ...interface{}) {
     if !log.disable {
-        _, _ = log.WriteWithPrefix("[HTTP]", v...)
+        _, _ = log.PrefixWrite("[HTTP]", v...)
+    }
+}
+
+// Debug
+func (log *Log) Debug(v ...interface{}) {
+    if !log.disable {
+        funcName := "???"
+        pc, file, line, ok := runtime.Caller(1)
+        if ok {
+            funcName = runtime.FuncForPC(pc).Name()
+        }
+        _, _ = log.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d %s %s", file, line, funcName, fmt.Sprintln(v...)))
     }
 }
 
@@ -113,27 +126,39 @@ func Println(v ...interface{}) {
 // Info
 func Info(v ...interface{}) {
     if !std.disable {
-        _, _ = std.WriteWithPrefix("[INFO]", v...)
+        _, _ = std.PrefixWrite("[INFO]", v...)
     }
 }
 
 // Warn
 func Warn(v ...interface{}) {
     if !std.disable {
-        _, _ = std.WriteWithPrefix("[WARN]", v...)
+        _, _ = std.PrefixWrite("[WARN]", v...)
     }
 }
 
 // Error
 func Error(v ...interface{}) {
     if !std.disable {
-        _, _ = std.WriteWithPrefix("[ERRO]", v...)
+        _, _ = std.PrefixWrite("[ERRO]", v...)
     }
 }
 
 // Http
 func Http(v ...interface{}) {
     if !std.disable {
-        _, _ = std.WriteWithPrefix("[HTTP]", v...)
+        _, _ = std.PrefixWrite("[HTTP]", v...)
+    }
+}
+
+// Debug
+func Debug(v ...interface{}) {
+    if !std.disable {
+        funcName := "???"
+        pc, file, line, ok := runtime.Caller(1)
+        if ok {
+            funcName = runtime.FuncForPC(pc).Name()
+        }
+        _, _ = std.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, funcName, fmt.Sprintln(v...)))
     }
 }
