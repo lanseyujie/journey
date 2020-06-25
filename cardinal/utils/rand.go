@@ -6,7 +6,20 @@ import (
     "time"
 )
 
-var alphabet = []byte(`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`)
+var (
+    Ascii    = GetAscii()
+    Base62   = []byte(`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`)
+    Alphabet = []byte(`ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`)
+)
+
+// GetAscii
+func GetAscii() (ascii []byte) {
+    for i := 0; i <= 255; i++ {
+        ascii = append(ascii, byte(i))
+    }
+
+    return
+}
 
 // RandomBytes generate random []byte
 func RandomBytes(n int, chars ...byte) []byte {
@@ -15,7 +28,7 @@ func RandomBytes(n int, chars ...byte) []byte {
 
     length := len(chars)
     if length == 0 {
-        chars = alphabet
+        chars = Base62
         length = len(chars)
     }
     maxIndex := length - 1
