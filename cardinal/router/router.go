@@ -4,10 +4,10 @@ import (
     "context"
     "errors"
     "fmt"
-    "log"
+    "journey/cardinal/log"
+    "journey/cardinal/utils"
     "net/http"
     "net/http/httputil"
-    "runtime/debug"
     "time"
 )
 
@@ -36,33 +36,51 @@ func (r *Router) Static(prefix, path string) {
     r.Get(prefix+"/*", FileServerHandler("/"+prefix+"/", path))
 }
 
-func MiddlewareLogger(handler HandlerFunc) HandlerFunc {
-    return func(httpCtx *Context) {
-        defer func() {
-            var err error
-            if e := recover(); e != nil {
-                switch e := e.(type) {
-                case string:
-                    err = errors.New(e)
-                case error:
-                    err = e
-                default:
-                    err = errors.New(fmt.Sprint(e))
+// MiddlewareLogger
+func MiddlewareLogger() MiddlewareFunc {
+    return func(handler HandlerFunc) HandlerFunc {
+        // create a new handler that includes the last handler
+        return func(httpCtx *Context) {
+            defer func() {
+                var err error
+                if e := recover(); e != nil {
+                    switch e := e.(type) {
+                    case string:
+                        err = errors.New(e)
+                    case error:
+                        err = e
+                    default:
+                        err = errors.New(fmt.Sprint(e))
+                    }
                 }
-            }
-            if err != nil {
-                log.Println(err)
-                log.Println(string(debug.Stack()))
-                request, _ := httputil.DumpRequest(httpCtx.Input, false)
-                log.Println(string(request))
-                httpCtx.Error(http.StatusInternalServerError)
-                // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
-                // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
-            }
-            log.Println(httpCtx.Logger())
-        }()
+                if err != nil {
+                    // print stack trace
+                    // log.Println(err)
+                    // debug.PrintStack()
+                    log.Error(utils.StackTrace(err, 0))
 
-        handler(httpCtx)
+                    // dump http request header
+                    request, _ := httputil.DumpRequest(httpCtx.Input, false)
+                    log.Debug(string(request))
+
+                    // the default error page can be called in the following 3 ways
+                    httpCtx.Error(http.StatusInternalServerError)
+                    // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
+                    // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
+                }
+
+                // reasons for collecting logs here:
+                // 1. capture the response status code, error and running time
+                // 2. avoid directly executing the defer process and skip log collection when panic occurs
+                log.Http(httpCtx.Logger())
+            }()
+
+            // to do something before
+
+            handler(httpCtx)
+
+            // to do something after
+        }
     }
 }
 
