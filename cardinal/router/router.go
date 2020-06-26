@@ -26,7 +26,7 @@ func NewRouter() *Router {
 // Default returns a default configured router
 func Default() *Router {
     router := NewRouter()
-    router.Group("/").Use(MiddlewareLogger)
+    router.Group("/").Use(MiddlewareLogger())
 
     return router
 }
@@ -150,13 +150,14 @@ func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
         handler = GetErrorHandler(http.StatusNotFound)
     }
 
-    if len(middleware) > 0 {
-        // TODO:// use chained calls instead it?
-        // handler push
-        for _, m := range middleware {
-            if m != nil {
-                handler = m(handler)
-            }
+    length := len(middleware)
+    // handler push
+    for i := range middleware {
+        // in reverse order
+        m := middleware[length-1-i]
+        if m != nil {
+            // create a new handler using the current middleware including the last handler
+            handler = m(handler)
         }
     }
     // handler pop
