@@ -35,9 +35,15 @@ func GetFunctionName(fn interface{}, seps ...rune) string {
 }
 
 // StackTrace
-func StackTrace(err error) string {
+func StackTrace(err error, skip ...int) string {
     pc := make([]uintptr, 16)
-    n := runtime.Callers(3, pc)
+
+    sk := 3
+    if len(skip) == 1 && skip[0] >= 0 {
+        sk = skip[0]
+    }
+
+    n := runtime.Callers(sk, pc)
     frames := runtime.CallersFrames(pc[:n])
     str := strings.Builder{}
     str.WriteString(err.Error() + "\nStackTrace:")
