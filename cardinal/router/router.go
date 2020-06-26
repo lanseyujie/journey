@@ -84,18 +84,34 @@ func MiddlewareLogger() MiddlewareFunc {
     }
 }
 
+// MiddlewareTimeout
+func MiddlewareTimeout(d time.Duration) MiddlewareFunc {
+    return func(handler HandlerFunc) HandlerFunc {
+        return func(httpCtx *Context) {
+            ctx, cancel := context.WithTimeout(httpCtx.Input.Context(), d)
+            defer cancel()
+            httpCtx.Input = httpCtx.Input.WithContext(ctx)
+
+            handler(httpCtx)
+        }
+    }
+}
+
+// Head
 func (r *Router) Head(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert(http.MethodHead, pattern, f)
     }
 }
 
+// Options
 func (r *Router) Options(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert(http.MethodOptions, pattern, f)
     }
 }
 
+// Get
 func (r *Router) Get(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert(http.MethodGet, pattern, f)
@@ -108,24 +124,28 @@ func (r *Router) Post(pattern string, f HandlerFunc) {
     }
 }
 
+// Put
 func (r *Router) Put(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert(http.MethodPut, pattern, f)
     }
 }
 
+// Delete
 func (r *Router) Delete(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert(http.MethodDelete, pattern, f)
     }
 }
 
+// Any
 func (r *Router) Any(pattern string, f HandlerFunc) {
     if f != nil {
         r.tree.Insert("ANY", pattern, f)
     }
 }
 
+// Show
 func (r *Router) Show() {
     r.tree.Show(nil)
 }
