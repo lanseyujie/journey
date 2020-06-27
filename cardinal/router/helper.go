@@ -30,7 +30,7 @@ func (r *Router) Group(group string) *Helper {
     }
 }
 
-func (h *Helper) Use(middleware ...MiddlewareFunc) *Helper {
+func (h *Helper) Use(middleware ...HandlerFunc) *Helper {
     h.router.tree.Insert("ANY", h.group, nil, middleware...)
 
     return h

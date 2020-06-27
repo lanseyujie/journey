@@ -37,63 +37,59 @@ func (r *Router) Static(prefix, path string) {
 }
 
 // MiddlewareLogger
-func MiddlewareLogger() MiddlewareFunc {
-    return func(handler HandlerFunc) HandlerFunc {
-        // create a new handler that includes the last handler
-        return func(httpCtx *Context) {
-            defer func() {
-                var err error
-                if e := recover(); e != nil {
-                    switch e := e.(type) {
-                    case string:
-                        err = errors.New(e)
-                    case error:
-                        err = e
-                    default:
-                        err = errors.New(fmt.Sprint(e))
-                    }
+func MiddlewareLogger() HandlerFunc {
+    return func(httpCtx *Context) {
+        defer func() {
+            var err error
+            if e := recover(); e != nil {
+                switch e := e.(type) {
+                case string:
+                    err = errors.New(e)
+                case error:
+                    err = e
+                default:
+                    err = errors.New(fmt.Sprint(e))
                 }
-                if err != nil {
-                    // print stack trace
-                    // log.Println(err)
-                    // debug.PrintStack()
-                    log.Error(utils.StackTrace(err, 0))
+            }
+            if err != nil {
+                // print stack trace
+                // log.Println(err)
+                // debug.PrintStack()
+                log.Error(utils.StackTrace(err, 0))
 
-                    // dump http request header
-                    request, _ := httputil.DumpRequest(httpCtx.Input, false)
-                    log.Debug(string(request))
+                // dump http request header
+                request, _ := httputil.DumpRequest(httpCtx.Input, false)
+                log.Debug(string(request))
 
-                    // the default error page can be called in the following 3 ways
-                    httpCtx.Error(http.StatusInternalServerError)
-                    // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
-                    // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
-                }
+                // the default error page can be called in the following 3 ways
+                httpCtx.Error(http.StatusInternalServerError)
+                // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
+                // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
+            }
 
-                // reasons for collecting logs here:
-                // 1. capture the response status code, error and running time
-                // 2. avoid directly executing the defer process and skip log collection when panic occurs
-                log.Http(httpCtx.Logger())
-            }()
+            // reasons for collecting logs here:
+            // 1. capture the response status code, error and running time
+            // 2. avoid directly executing the defer process and skip log collection when panic occurs
+            log.Http(httpCtx.Logger())
+        }()
 
-            // to do something before
+        // to do something before
 
-            handler(httpCtx)
+        // call the next middleware
+        httpCtx.Next()
 
-            // to do something after
-        }
+        // to do something after
     }
 }
 
 // MiddlewareTimeout
-func MiddlewareTimeout(d time.Duration) MiddlewareFunc {
-    return func(handler HandlerFunc) HandlerFunc {
-        return func(httpCtx *Context) {
-            ctx, cancel := context.WithTimeout(httpCtx.Input.Context(), d)
-            defer cancel()
-            httpCtx.Input = httpCtx.Input.WithContext(ctx)
+func MiddlewareTimeout(d time.Duration) HandlerFunc {
+    return func(httpCtx *Context) {
+        ctx, cancel := context.WithTimeout(httpCtx.Input.Context(), d)
+        defer cancel()
+        httpCtx.Input = httpCtx.Input.WithContext(ctx)
 
-            handler(httpCtx)
-        }
+        httpCtx.Next()
     }
 }
 
@@ -152,52 +148,34 @@ func (r *Router) Show() {
 
 // ServeHTTP
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-    t := time.Now()
     httpCtx := NewContext(rw, req)
-    httpCtx.since = t
     uri := httpCtx.GetUri()
     method := httpCtx.GetMethod()
 
-    var (
-        middleware []MiddlewareFunc
-        handler    HandlerFunc
-        exist      bool
-    )
-
+    var exist bool
     // TODO:// cache
     node, params := r.tree.Match(uri)
     if node != nil {
         httpCtx.Input = httpCtx.Input.WithContext(context.WithValue(httpCtx.Input.Context(), "params", params))
-        middleware = MiddlewareList(node)
-        handler, exist = node.handlers[method]
+        httpCtx.handler, exist = node.handlers[method]
         if !exist {
             // if the HEAD handler does not exist and the GET handler exists, call the GET handler
             if h, exist := node.handlers[http.MethodGet]; method == http.MethodHead && exist {
-                handler = h
+                httpCtx.handler = h
             } else {
                 // default handler
-                handler, _ = node.handlers["ANY"]
+                httpCtx.handler, _ = node.handlers["ANY"]
             }
         }
 
-        if handler == nil {
-            handler = GetErrorHandler(http.StatusMethodNotAllowed)
+        if httpCtx.handler == nil {
+            httpCtx.handler = GetErrorHandler(http.StatusMethodNotAllowed)
+        } else {
+            httpCtx.middleware = MiddlewareList(node)
         }
     } else {
-        middleware = r.tree.root.middleware
-        handler = GetErrorHandler(http.StatusNotFound)
+        httpCtx.handler = GetErrorHandler(http.StatusNotFound)
     }
 
-    length := len(middleware)
-    // handler push
-    for i := range middleware {
-        // in reverse order
-        m := middleware[length-1-i]
-        if m != nil {
-            // create a new handler using the current middleware including the last handler
-            handler = m(handler)
-        }
-    }
-    // handler pop
-    handler(httpCtx)
+    httpCtx.Next()
 }

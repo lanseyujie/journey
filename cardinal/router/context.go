@@ -18,10 +18,13 @@ type Array map[string]interface{}
 
 // Context is the router context
 type Context struct {
-    Input  *http.Request
-    Output http.ResponseWriter
-    code   int
-    since  time.Time
+    Input      *http.Request
+    Output     http.ResponseWriter
+    index      int
+    middleware []HandlerFunc
+    handler    HandlerFunc
+    code       int
+    since      time.Time
 }
 
 // NewContext returns a new router context
@@ -30,6 +33,22 @@ func NewContext(rw http.ResponseWriter, req *http.Request) *Context {
         Input:  req,
         Output: rw,
         code:   http.StatusOK,
+        since:  time.Now(),
+    }
+}
+
+// Next
+func (ctx *Context) Next() {
+    length := len(ctx.middleware)
+    current := ctx.index
+    if current <= length-1 {
+        // counted before because the called middleware does not return immediately
+        ctx.index++
+        ctx.middleware[current](ctx)
+    } else if current == length {
+        // invalid ctx.Next() is called in the controller
+        ctx.index++
+        ctx.handler(ctx)
     }
 }
 

@@ -23,11 +23,8 @@ func NewTree() *Tree {
     }
 }
 
-// HandlerFunc is the type of controller
+// HandlerFunc is the type of middleware and controller
 type HandlerFunc func(httpCtx *Context)
-
-// MiddlewareFunc is the type of middleware
-type MiddlewareFunc func(handler HandlerFunc) HandlerFunc
 
 // Node mounts the callback controller
 type Node struct {
@@ -39,7 +36,7 @@ type Node struct {
     parent     *Node
     children   map[string]*Node
     handlers   map[string]HandlerFunc
-    middleware []MiddlewareFunc
+    middleware []HandlerFunc
 }
 
 // NewNode returns a new node based on the rule and node depth
@@ -59,7 +56,7 @@ func NewNode(rule string, depth int) *Node {
 }
 
 // Insert a routing rule into the tree
-func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware ...MiddlewareFunc) {
+func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware ...HandlerFunc) {
     currentNode := t.root
     currentFullRule := t.root.fullRule
 
@@ -270,14 +267,14 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
 }
 
 // MiddlewareList returns middleware in each layer in top-down order
-func MiddlewareList(node *Node) []MiddlewareFunc {
+func MiddlewareList(node *Node) []HandlerFunc {
     if node.fullRule == "/" {
         return node.middleware
     }
 
-    list := make([]MiddlewareFunc, 0)
-    var fn func(node *Node) []MiddlewareFunc
-    fn = func(node *Node) []MiddlewareFunc {
+    list := make([]HandlerFunc, 0)
+    var fn func(node *Node) []HandlerFunc
+    fn = func(node *Node) []HandlerFunc {
         if node.parent != nil {
             if len(node.parent.middleware) > 0 {
                 list = append(node.parent.middleware, list...)
