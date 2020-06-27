@@ -141,6 +141,11 @@ func (r *Router) Any(pattern string, f HandlerFunc) {
     }
 }
 
+// Insert
+func (r *Router) Insert(method, fullRule string, handler HandlerFunc, middleware ...HandlerFunc) {
+    r.tree.Insert(method, fullRule, handler, middleware...)
+}
+
 // Show
 func (r *Router) Show() {
     r.tree.Show(nil)
