@@ -175,8 +175,8 @@ func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
     return currentNode, params
 }
 
-// Show the controller and middleware for each routing rule
-func (t *Tree) Show(node *Node) {
+// PrintRoutes print the controller and middleware for each routing rule
+func (t *Tree) PrintRoutes(node *Node) {
     if node == nil {
         node = t.root
     }
@@ -205,10 +205,10 @@ func (t *Tree) Show(node *Node) {
         }
     }
 
+    fn(node)
     if len(node.children) > 0 {
         for _, child := range node.children {
-            fn(child)
-            t.Show(child)
+            t.PrintRoutes(child)
         }
     }
 }

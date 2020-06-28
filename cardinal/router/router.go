@@ -85,9 +85,9 @@ func (r *Router) Insert(method, fullRule string, handler HandlerFunc, middleware
     r.tree.Insert(method, fullRule, handler, middleware...)
 }
 
-// Show
-func (r *Router) Show() {
-    r.tree.Show(nil)
+// PrintRoutes
+func (r *Router) PrintRoutes() {
+    r.tree.PrintRoutes(nil)
 }
 
 // ServeHTTP
