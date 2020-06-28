@@ -23,6 +23,7 @@ type Context struct {
     index      int
     middleware []HandlerFunc
     handler    HandlerFunc
+    params     map[string]string
     code       int
     since      time.Time
 }
@@ -86,12 +87,10 @@ func (ctx *Context) GetUri() string {
 }
 
 // GetParams
-func (ctx *Context) GetParams() map[string]string {
-    if params, ok := ctx.Input.Context().Value("params").(map[string]string); ok {
-        return params
-    }
+func (ctx *Context) GetParams(key string) (value string, exist bool) {
+    value, exist = ctx.params[key]
 
-    return nil
+    return
 }
 
 // GetHeader
@@ -215,6 +214,11 @@ func (ctx *Context) Text(code int, text []byte) {
 func (ctx *Context) StatusCode(code int) {
     ctx.code = code
     ctx.Output.WriteHeader(ctx.code)
+}
+
+// SetHeader
+func (ctx *Context) SetHeader(key, value string) {
+    ctx.Input.Header.Set(key, value)
 }
 
 // Redirect response
