@@ -94,7 +94,7 @@ func (log *Log) Http(v ...interface{}) {
 func (log *Log) Debug(v ...interface{}) {
     if !log.disable {
         file, line, fn := GetCaller()
-        _, _ = log.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprintln(v...)))
+        _, _ = log.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprint(v...)))
     }
 }
 
@@ -190,6 +190,6 @@ func Http(v ...interface{}) {
 func Debug(v ...interface{}) {
     if !std.disable {
         file, line, fn := GetCaller()
-        _, _ = std.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprintln(v...)))
+        _, _ = std.PrefixWrite("[DBUG]", fmt.Sprintf("%s:%d@%s %s", file, line, fn, fmt.Sprint(v...)))
     }
 }
