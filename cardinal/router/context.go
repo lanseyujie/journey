@@ -225,57 +225,6 @@ func (ctx *Context) Redirect(code int, url string) {
     }
 }
 
-// HttpsUpgrade redirect response
-func (ctx *Context) HttpsUpgrade(port int) {
-    url := "https://" + ctx.GetHost()
-    if port != 443 {
-        url += ":" + strconv.FormatInt(int64(port), 10) + ctx.Input.URL.Path
-    }
-    if len(ctx.Input.URL.RawQuery) > 0 {
-        url += ctx.Input.URL.Path + "?" + ctx.Input.URL.RawQuery
-    } else {
-        url += ctx.Input.URL.Path
-    }
-    ctx.Redirect(http.StatusMovedPermanently, url)
-}
-
-// Cors response
-func (ctx *Context) Cors(domain []string) {
-    allow := false
-    origin := ctx.Input.Header.Get("Origin")
-    method := []string{
-        http.MethodGet,
-        http.MethodPost,
-        http.MethodOptions,
-        http.MethodPut,
-        http.MethodPatch,
-        http.MethodDelete,
-    }
-
-    if len(domain) > 0 {
-        if len(domain) == 1 && domain[0] == "*" {
-            allow = true
-            origin = "*"
-        } else if len(origin) > 0 {
-            for _, value := range domain {
-                if strings.Contains(value, origin) {
-                    allow = true
-                    break
-                }
-            }
-        }
-    }
-
-    if allow {
-        ctx.Output.Header().Set("Access-Control-Allow-Origin", origin)
-        if ctx.Input.Method == http.MethodOptions {
-            ctx.Output.Header().Set("Access-Control-Allow-Methods", strings.Join(method, ", "))
-            ctx.Output.Header().Set("Access-Control-Allow-Headers", ctx.Input.Header.Get("Access-Control-Request-Headers"))
-        }
-        ctx.StatusCode(http.StatusNoContent)
-    }
-}
-
 // Error page response
 func (ctx *Context) Error(code int) {
     if handler, exist := errorHandler[code]; exist {
@@ -283,13 +232,6 @@ func (ctx *Context) Error(code int) {
     } else {
         ctx.StatusCode(code)
         _, _ = ctx.Output.Write([]byte(http.StatusText(code)))
-    }
-}
-
-// FileServerHandler returns the file server handler
-func FileServerHandler(prefix, dir string) HandlerFunc {
-    return func(httpCtx *Context) {
-        http.StripPrefix(prefix, http.FileServer(http.Dir(dir))).ServeHTTP(httpCtx.Output, httpCtx.Input)
     }
 }
 

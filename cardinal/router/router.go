@@ -2,13 +2,7 @@ package router
 
 import (
     "context"
-    "errors"
-    "fmt"
-    "journey/cardinal/log"
-    "journey/cardinal/utils"
     "net/http"
-    "net/http/httputil"
-    "time"
 )
 
 // Router
@@ -33,64 +27,9 @@ func Default() *Router {
 
 // Static will quickly register a static file service route
 func (r *Router) Static(prefix, path string) {
-    r.Get(prefix+"/*", FileServerHandler("/"+prefix+"/", path))
-}
-
-// MiddlewareLogger
-func MiddlewareLogger() HandlerFunc {
-    return func(httpCtx *Context) {
-        defer func() {
-            var err error
-            if e := recover(); e != nil {
-                switch e := e.(type) {
-                case string:
-                    err = errors.New(e)
-                case error:
-                    err = e
-                default:
-                    err = errors.New(fmt.Sprint(e))
-                }
-            }
-            if err != nil {
-                // print stack trace
-                // log.Println(err)
-                // debug.PrintStack()
-                log.Error(utils.StackTrace(err, 0))
-
-                // dump http request header
-                request, _ := httputil.DumpRequest(httpCtx.Input, false)
-                log.Debug(string(request))
-
-                // the default error page can be called in the following 3 ways
-                httpCtx.Error(http.StatusInternalServerError)
-                // GetErrorHandler(http.StatusInternalServerError)(httpCtx)
-                // httpCtx.Handler(router.GetErrorHandler(http.StatusInternalServerError))
-            }
-
-            // reasons for collecting logs here:
-            // 1. capture the response status code, error and running time
-            // 2. avoid directly executing the defer process and skip log collection when panic occurs
-            log.Http(httpCtx.Logger())
-        }()
-
-        // to do something before
-
-        // call the next middleware
-        httpCtx.Next()
-
-        // to do something after
-    }
-}
-
-// MiddlewareTimeout
-func MiddlewareTimeout(d time.Duration) HandlerFunc {
-    return func(httpCtx *Context) {
-        ctx, cancel := context.WithTimeout(httpCtx.Input.Context(), d)
-        defer cancel()
-        httpCtx.Input = httpCtx.Input.WithContext(ctx)
-
-        httpCtx.Next()
-    }
+    r.Get(prefix+"*", func(httpCtx *Context) {
+        http.StripPrefix(prefix, http.FileServer(http.Dir(path))).ServeHTTP(httpCtx.Output, httpCtx.Input)
+    })
 }
 
 // Head
