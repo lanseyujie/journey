@@ -61,11 +61,14 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
     currentFullRule := t.root.fullRule
 
     if currentFullRule != fullRule {
-        rules := strings.Split(fullRule, "/")
-        length := len(rules)
-        for index, rule := range rules {
+        length := len(fullRule)
+        start := 1
+        for i := start; i <= length; i++ {
+            if i < length && fullRule[i] != '/' {
+                continue
+            }
+            rule := fullRule[start:i]
             if rule == "" {
-                // exclude empty rule that begin or end with / and consecutive /
                 continue
             }
 
@@ -73,19 +76,13 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
             // may be panic here if the rule is wrong
             key, pattern, isWildcard := compile(rule)
             if key == "" {
-                panic("rule error: `" + rule + "` in " + fullRule)
-            }
-
-            currentFullRule += rule
-            // according to the index to determine whether it is a path name
-            if index < length-1 {
-                currentFullRule += "/"
+                panic("router: rule compile error: `" + rule + "` in " + fullRule)
             }
 
             node, exist := currentNode.children[rule]
             if !exist {
                 node = NewNode(rule, currentNode.depth+1)
-                node.fullRule = currentFullRule
+                node.fullRule = fullRule[:i]
                 node.key = key
                 node.pattern = pattern
                 node.parent = currentNode
@@ -98,6 +95,8 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
             if isWildcard {
                 break
             }
+
+            start = i + 1
         }
     }
 
