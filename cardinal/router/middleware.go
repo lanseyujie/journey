@@ -73,6 +73,12 @@ func MiddlewareTimeout(d time.Duration) HandlerFunc {
 // MiddlewareCors
 func MiddlewareCors(domain []string) HandlerFunc {
     return func(httpCtx *Context) {
+        if httpCtx.Input.Method != http.MethodOptions {
+            httpCtx.Next()
+
+            return
+        }
+
         allow := false
         origin := httpCtx.Input.Header.Get("Origin")
         method := []string{
