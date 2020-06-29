@@ -60,10 +60,13 @@ func NewNode(rule string, depth int) *Node {
 // Insert a routing rule into the tree
 func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware ...HandlerFunc) {
     currentNode := t.root
-    currentFullRule := t.root.fullRule
+    length := len(fullRule)
+    // always start with /
+    if length == 0 || (length > 0 && fullRule[0] != '/') {
+        fullRule = "/" + fullRule
+    }
 
-    if currentFullRule != fullRule {
-        length := len(fullRule)
+    if currentNode.fullRule != fullRule {
         start := 1
         for i := start; i <= length; i++ {
             if i < length && fullRule[i] != '/' {
