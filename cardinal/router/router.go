@@ -1,7 +1,6 @@
 package router
 
 import (
-    "context"
     "net/http"
 )
 
@@ -27,7 +26,13 @@ func Default() *Router {
 
 // Static will quickly register a static file service route
 func (r *Router) Static(prefix, path string) {
-    r.Get(prefix+"*", func(httpCtx *Context) {
+    length := len(prefix)
+    // make sure to end with /
+    if length == 0 || (length > 0 && prefix[length-1] != '/') {
+        prefix = prefix + "/"
+    }
+
+    r.Get(prefix+":*", func(httpCtx *Context) {
         http.StripPrefix(prefix, http.FileServer(http.Dir(path))).ServeHTTP(httpCtx.Output, httpCtx.Input)
     })
 }
@@ -93,33 +98,7 @@ func (r *Router) PrintRoutes() {
 // ServeHTTP
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     httpCtx := NewContext(rw, req)
-    uri := httpCtx.GetUri()
-    method := httpCtx.GetMethod()
-
-    var exist bool
     // TODO:// cache
-    node, params := r.tree.Match(uri)
-    if node != nil {
-        httpCtx.Input = httpCtx.Input.WithContext(context.WithValue(httpCtx.Input.Context(), "params", params))
-        httpCtx.handler, exist = node.handlers[method]
-        if !exist {
-            // if the HEAD handler does not exist and the GET handler exists, call the GET handler
-            if h, exist := node.handlers[http.MethodGet]; method == http.MethodHead && exist {
-                httpCtx.handler = h
-            } else {
-                // default handler
-                httpCtx.handler, _ = node.handlers["ANY"]
-            }
-        }
-
-        if httpCtx.handler == nil {
-            httpCtx.handler = GetErrorHandler(http.StatusMethodNotAllowed)
-        } else {
-            httpCtx.middleware = MiddlewareList(node)
-        }
-    } else {
-        httpCtx.handler = GetErrorHandler(http.StatusNotFound)
-    }
-
+    httpCtx.middleware, httpCtx.handler, httpCtx.params = r.tree.Match(req.URL.Path, req.Method)
     httpCtx.Next()
 }

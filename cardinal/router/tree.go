@@ -2,6 +2,7 @@ package router
 
 import (
     "fmt"
+    "net/http"
     "reflect"
     "regexp"
     "runtime"
@@ -32,6 +33,7 @@ type Node struct {
     rule       string
     fullRule   string
     key        string
+    isWildcard bool
     pattern    *regexp.Regexp
     parent     *Node
     children   map[string]*Node
@@ -84,6 +86,7 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
                 node = NewNode(rule, currentNode.depth+1)
                 node.fullRule = fullRule[:i]
                 node.key = key
+                node.isWildcard = isWildcard
                 node.pattern = pattern
                 node.parent = currentNode
                 currentNode.children[rule] = node
@@ -112,67 +115,101 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 }
 
 // Match the request uri in the tree to get the target node
-func (t *Tree) Match(requestUri string) (*Node, map[string]string) {
+func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handler HandlerFunc, params map[string]string) {
     currentNode := t.root
-    currentRequestUri := t.root.fullRule
-    params := make(map[string]string)
-
-    if currentRequestUri == requestUri {
-        return currentNode, params
+    middleware = make([]HandlerFunc, 0, 2)
+    if len(currentNode.middleware) > 0 {
+        middleware = append(middleware, currentNode.middleware...)
     }
+    params = make(map[string]string)
 
-    names := strings.Split(requestUri, "/")
-    length := len(names)
-    for index, name := range names {
-        if name == "" {
-            continue
-        }
+    if currentNode.fullRule != requestUri {
+        length := len(requestUri)
+        start := 1
+        for i := start; i <= length; i++ {
+            if i < length && requestUri[i] != '/' {
+                continue
+            }
+            name := requestUri[start:i]
+            if name == "" {
+                continue
+            }
 
-        node, exist := currentNode.children[name]
-        if !exist {
-            // match the rule
-            found := false
-            for _, childNode := range currentNode.children {
-                if childNode.key[len(childNode.key)-1:] == "*" {
-                    if childNode.key != "*" && !strings.HasPrefix(name, childNode.key[:len(childNode.key)-1]) {
-                        continue
+            // match a node that meets the rules in children nodes
+            node, found := currentNode.children[name]
+            if !found {
+                for _, childNode := range currentNode.children {
+                    if childNode.key != childNode.rule {
+                        if childNode.isWildcard {
+                            // for wildcard
+                            if childNode.key == "*" || childNode.key == name+"*" {
+                                found = true
+                                params[childNode.key] = requestUri[start:]
+                                node = childNode
+
+                                break
+                            }
+                        } else {
+                            // for regexp rule
+                            if childNode.pattern != nil && childNode.pattern.MatchString(name) {
+                                found = true
+                                params[childNode.key] = name
+                                node = childNode
+
+                                break
+                            }
+                        }
                     }
+                }
 
-                    // for wildcard, e.g. *, static*
-                    params[childNode.key] = requestUri[len(currentRequestUri):]
+                // node not found
+                if !found {
+                    handler = GetErrorHandler(http.StatusNotFound)
 
-                    return childNode, params
-                } else if childNode.key != childNode.rule {
-                    // for custom rule
-                    if childNode.pattern != nil && !childNode.pattern.MatchString(name) {
-                        // rule mismatch and continue to the next match
-                        continue
-                    }
-
-                    // the rule has been successfully matched
-                    found = true
-                    params[childNode.key] = name
-                    node = childNode
-
-                    // jumps out of matching child nodes at the current node
-                    break
+                    return
                 }
             }
 
-            if !found {
-                return nil, params
+            // node found
+
+            currentNode = node
+            if len(currentNode.middleware) > 0 {
+                middleware = append(middleware, currentNode.middleware...)
             }
-        }
+            if currentNode.isWildcard {
+                // do not match nodes after wildcard nodes
+                break
+            }
 
-        currentRequestUri += name
-        if index < length-1 {
-            currentRequestUri += "/"
+            start = i + 1
         }
-
-        currentNode = node
     }
 
-    return currentNode, params
+    var exist bool
+    handler, exist = currentNode.handlers[method]
+    if !exist {
+        // call the GET handler if the HEAD handler does not exist
+        if method == http.MethodHead {
+            handler, exist = currentNode.handlers[http.MethodGet]
+            if handler == nil {
+                if exist {
+                    handler = GetErrorHandler(http.StatusNotImplemented)
+                } else {
+                    // default handler
+                    handler, exist = currentNode.handlers["ANY"]
+                    if handler == nil {
+                        if exist {
+                            handler = GetErrorHandler(http.StatusNotImplemented)
+                        } else {
+                            handler = GetErrorHandler(http.StatusMethodNotAllowed)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return
 }
 
 // PrintRoutes print the controller and middleware for each routing rule
@@ -228,18 +265,18 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
         } else if s == "name" {
             key = "name"
             pattern = regexp.MustCompile(`^[\w-]+$`)
+        } else if s[len(s)-1:] == "*" {
+            // :*, :static*
+            isWildcard = true
+            key = s
         } else {
             a := strings.Index(s, "(")
             b := strings.LastIndex(s, ")")
-            if s[len(s)-1:] == "*" {
-                // *, static*
-                isWildcard = true
-                key = s
-            } else if 0 < a && a < b {
+            if 0 < a && a < b {
                 // :uid(^[\d]+$)
                 key = s[:a]
                 pattern = regexp.MustCompile(s[a+1 : b])
-            } else if a == b {
+            } else if a == -1 && b == -1 {
                 // :str
                 key = s
             }
