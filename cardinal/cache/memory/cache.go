@@ -3,7 +3,7 @@ package memory
 import "time"
 
 type Cache struct {
-    value    interface{}
+    data     interface{}
     create   time.Time
     lifetime time.Duration
 }

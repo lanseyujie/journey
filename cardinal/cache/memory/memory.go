@@ -13,8 +13,8 @@ type Memory struct {
 }
 
 var (
-    ErrKeyNotExist     = errors.New("cache: memory: key not exist")
-    ErrValueTypeNotInt = errors.New("cache: memory: value type is not integer")
+    ErrKeyNotExistOrNotPermanent = errors.New("cache: memory: key not exist or not permanent")
+    ErrValueTypeNotInt           = errors.New("cache: memory: data type is not integer")
 )
 
 // NewMemory
@@ -28,7 +28,7 @@ func NewMemory(period time.Duration) *Memory {
 // Init
 func (mem *Memory) Init() error {
     // disable GC
-    if mem.period < time.Second {
+    if mem.period < time.Second*10 {
         return nil
     }
 
@@ -37,6 +37,7 @@ func (mem *Memory) Init() error {
         for {
             keys := make([]string, 0, len(mem.cache))
             <-time.After(mem.period)
+
             mem.RLock()
             for key, cache := range mem.cache {
                 if cache.Expire() {
@@ -73,7 +74,7 @@ func (mem *Memory) Get(key string) interface{} {
     defer mem.RUnlock()
 
     if cache, exist := mem.cache[key]; exist && !cache.Expire() {
-        return cache.value
+        return cache.data
     }
 
     return nil
@@ -83,7 +84,7 @@ func (mem *Memory) Get(key string) interface{} {
 func (mem *Memory) Put(key string, value interface{}, lifetime time.Duration) error {
     mem.Lock()
     mem.cache[key] = &Cache{
-        value:    value,
+        data:     value,
         create:   time.Now(),
         lifetime: lifetime,
     }
@@ -107,23 +108,23 @@ func (mem *Memory) Incr(key string) error {
     defer mem.Unlock()
 
     cache, exist := mem.cache[key]
-    if !exist {
-        return ErrKeyNotExist
+    if !exist || (exist && cache.lifetime > 0) {
+        return ErrKeyNotExistOrNotPermanent
     }
 
-    switch value := cache.value.(type) {
+    switch value := cache.data.(type) {
     case int:
-        cache.value = value + 1
+        cache.data = value + 1
     case int32:
-        cache.value = value + 1
+        cache.data = value + 1
     case int64:
-        cache.value = value + 1
+        cache.data = value + 1
     case uint:
-        cache.value = value + 1
+        cache.data = value + 1
     case uint32:
-        cache.value = value + 1
+        cache.data = value + 1
     case uint64:
-        cache.value = value + 1
+        cache.data = value + 1
     default:
         return ErrValueTypeNotInt
     }
@@ -137,28 +138,28 @@ func (mem *Memory) Decr(key string) error {
     defer mem.Unlock()
 
     cache, exist := mem.cache[key]
-    if !exist {
-        return ErrKeyNotExist
+    if !exist || (exist && cache.lifetime > 0) {
+        return ErrKeyNotExistOrNotPermanent
     }
 
-    switch value := cache.value.(type) {
+    switch value := cache.data.(type) {
     case int:
-        cache.value = value - 1
+        cache.data = value - 1
     case int32:
-        cache.value = value - 1
+        cache.data = value - 1
     case int64:
-        cache.value = value - 1
+        cache.data = value - 1
     case uint:
         if value > 0 {
-            cache.value = value - 1
+            cache.data = value - 1
         }
     case uint32:
         if value > 0 {
-            cache.value = value - 1
+            cache.data = value - 1
         }
     case uint64:
         if value > 0 {
-            cache.value = value - 1
+            cache.data = value - 1
         }
     default:
         return ErrValueTypeNotInt
