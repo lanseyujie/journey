@@ -11,6 +11,8 @@ import (
     "os"
 )
 
+var ErrChkSumUnsupportedType = errors.New("chksum: unsupported type")
+
 func Md5sum(b interface{}) (string, error) {
     return ChkSum(md5.New(), b)
 }
@@ -24,25 +26,20 @@ func Sha256sum(b interface{}) (string, error) {
 }
 
 // support []byte, string, *os.File
-func ChkSum(h hash.Hash, b interface{}) (string, error) {
-    var bytes []byte
+func ChkSum(h hash.Hash, b interface{}) (sum string, err error) {
+    switch v := b.(type) {
+    case []byte:
+        _, err = h.Write(v)
+    case string:
+        _, err = io.WriteString(h, v)
+    case *os.File:
+        _, err = io.Copy(h, v)
+    default:
+        return "", ErrChkSumUnsupportedType
+    }
 
-    if f, ok := b.(*os.File); ok {
-        if _, err := io.Copy(h, f); err != nil {
-            return "", err
-        }
-    } else {
-        if bs, ok := b.([]byte); ok {
-            bytes = bs
-        } else if str, ok := b.(string); ok {
-            bytes = []byte(str)
-        } else {
-            return "", errors.New("chksum: unsupported type")
-        }
-
-        if _, err := h.Write(bytes); err != nil {
-            return "", err
-        }
+    if err != nil {
+        return "", err
     }
 
     return hex.EncodeToString(h.Sum(nil)), nil
