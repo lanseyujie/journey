@@ -194,19 +194,18 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
         // call the GET handler if the HEAD handler does not exist
         if method == http.MethodHead {
             handler, exist = currentNode.handlers[http.MethodGet]
+            if handler == nil && exist {
+                handler = GetErrorHandler(http.StatusNotImplemented)
+            }
+        }
+        if handler == nil {
+            // default handler
+            handler, exist = currentNode.handlers["ANY"]
             if handler == nil {
                 if exist {
                     handler = GetErrorHandler(http.StatusNotImplemented)
                 } else {
-                    // default handler
-                    handler, exist = currentNode.handlers["ANY"]
-                    if handler == nil {
-                        if exist {
-                            handler = GetErrorHandler(http.StatusNotImplemented)
-                        } else {
-                            handler = GetErrorHandler(http.StatusMethodNotAllowed)
-                        }
-                    }
+                    handler = GetErrorHandler(http.StatusMethodNotAllowed)
                 }
             }
         }
