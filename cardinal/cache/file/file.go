@@ -94,8 +94,7 @@ func (f *File) Init() error {
                     return nil
                 }
 
-                length := len(path)
-                if length == 32+4 && path[length-4:] == ".bin" {
+                if path[len(path)-4:] == ".bin" {
                     cache, err := f.getCache(path)
                     if err == nil && cache.Expire() {
                         _ = os.Remove(path)
@@ -282,8 +281,7 @@ func (f *File) Drop() (err error) {
             return nil
         }
 
-        length := len(path)
-        if length == 32+4 && path[length-4:] == ".bin" {
+        if path[len(path)-4:] == ".bin" {
             err = os.Remove(path)
             if err != nil {
                 return err
