@@ -15,9 +15,13 @@ func NewEngine(name string, d Dialect) *Engine {
         return e
     }
 
-    return &Engine{
+    e:=  &Engine{
         dialect: d,
     }
+
+    engineMap[name] = e
+
+    return e
 }
 
 // GetEngine
