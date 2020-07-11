@@ -262,13 +262,25 @@ func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) 
     }
 
     model := reflect.New(rType.Elem()).Elem()
+
+    // sql column name to model field name
+    alias := make(map[string]string)
+    for i := 0; i < model.NumField(); i++ {
+        field := model.Type().Field(i)
+        name := field.Name
+        if tag, exist := field.Tag.Lookup("orm"); exist {
+            alias[tag] = name
+        } else {
+            alias[utils.UnderScoreCase(name)] = name
+        }
+    }
+
     // iterate over each row
     for rows.Next() {
         var results []interface{}
         // associated with the query results to model field
         for _, col := range cols {
-            // TODO:// alias tag
-            field := model.FieldByName(utils.PascalCase(col))
+            field := model.FieldByName(alias[col])
             if field.IsValid() {
                 results = append(results, field.Addr().Interface())
             } else {
