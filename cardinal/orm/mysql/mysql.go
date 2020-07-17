@@ -115,6 +115,9 @@ func (m *MySql) GetColumnSqlType(typ reflect.Value) string {
 }
 
 // TableExistSql
-func (m *MySql) GetExistTableSql(table string) string {
-    return "SELECT COUNT(*) AS `exist` FROM `information_schema`.`TABLES` WHERE `TABLE_SCHEMA`='" + m.database + "' AND `TABLE_NAME`='" + table + "';"
+func (m *MySql) GetExistTableSql(table string) (preSql string, params []interface{}) {
+    preSql = "SELECT COUNT(*) AS `exist` FROM `information_schema`.`TABLES` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?;"
+    params = []interface{}{m.database, table}
+
+    return
 }

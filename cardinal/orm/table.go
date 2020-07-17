@@ -19,7 +19,7 @@ func (t *Table) GetAlias() string {
         return t.Alias
     }
 
-    return t.Prefix + utils.UnderScoreCase(t.Name)
+    return utils.UnderScoreCase(t.Prefix + t.Name)
 }
 
 // Create
@@ -38,7 +38,7 @@ func (t *Table) Drop() string {
 }
 
 // Exist
-func (t *Table) Exist(dialect Dialect) string {
+func (t *Table) Exist(dialect Dialect) (string, []interface{}) {
     return dialect.GetExistTableSql(t.Alias)
 }
 

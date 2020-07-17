@@ -48,13 +48,18 @@ func NewOrm(engine *Engine, ctx context.Context) (*Orm, error) {
 }
 
 // ParseModel
-func (orm *Orm) ParseModel(model interface{}) (*Table, error) {
+func (orm *Orm) ParseModel(model interface{}) (table *Table, err error) {
     typ := reflect.Indirect(reflect.ValueOf(model)).Type()
     if typ.Kind() != reflect.Struct {
         return nil, ErrUnsupportedType
     }
 
-    table := &Table{
+    // table = cache.Get(typ.String())
+    // if table != nil {
+    //     return
+    // }
+
+    table = &Table{
         Prefix: orm.engine.dialect.GetTablePrefix(),
         Name:   typ.Name(),
         Model:  model,
@@ -88,7 +93,8 @@ func (orm *Orm) ParseModel(model interface{}) (*Table, error) {
         }
     }
 
-    // TODO:// cache table
+    // cache.Put(typ.String(), table)
+
     return table, nil
 }
 
@@ -116,11 +122,45 @@ func (orm *Orm) DropTable(model interface{}) error {
     return err
 }
 
-// ExistTable
-func (orm *Orm) ExistTable(model interface{}) error {
-    // TODO://
+// TableAlias
+func (orm *Orm) TableAlias(table interface{}) (alias string, err error) {
+    prefix := orm.engine.dialect.GetTablePrefix()
+    switch tab := table.(type) {
+    case string:
+        alias = prefix + tab
+    case *Table:
+        alias = tab.GetAlias()
+    default:
+        typ := reflect.Indirect(reflect.ValueOf(tab)).Type()
+        if typ.Kind() != reflect.Struct {
+            return "", ErrUnsupportedType
+        } else {
+            alias = utils.UnderScoreCase(prefix + typ.Name())
+        }
+    }
 
-    return nil
+    return
+}
+
+// ExistTable
+func (orm *Orm) ExistTable(table interface{}) (exist bool, err error) {
+    var (
+        preSql string
+        params []interface{}
+    )
+
+    switch tab := table.(type) {
+    case string:
+        preSql, params = orm.engine.dialect.GetExistTableSql(tab)
+    case *Table:
+        preSql, params = tab.Exist(orm.engine.dialect)
+    default:
+        return false, ErrUnsupportedType
+    }
+
+    err = orm.QueryRow(preSql, params, &exist)
+
+    return
 }
 
 // AlterTable

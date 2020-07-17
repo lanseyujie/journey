@@ -12,7 +12,7 @@ type Dialect interface {
     Config(db *sql.DB)
     GetTablePrefix() string
     GetColumnSqlType(typ reflect.Value) string
-    GetExistTableSql(table string) string
+    GetExistTableSql(table string) (preSql string, params []interface{})
 }
 
 var dialectMap = make(map[string]Dialect)
