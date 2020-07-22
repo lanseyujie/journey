@@ -148,18 +148,18 @@ func (ctx *Context) GetBody() ([]byte, error) {
 }
 
 // GetJson and parse it
-func (ctx *Context) GetJson(m interface{}) (interface{}, error) {
+func (ctx *Context) GetJson(m interface{}) error {
     ret, err := ioutil.ReadAll(ctx.Input.Body)
     if err != nil {
-        return m, err
+        return err
     }
 
-    err = json.Unmarshal(ret, &m)
+    err = json.Unmarshal(ret, m)
     if err != nil {
-        return m, err
+        return err
     }
 
-    return m, nil
+    return nil
 }
 
 // Html response
