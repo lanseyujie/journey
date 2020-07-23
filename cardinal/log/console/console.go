@@ -57,7 +57,7 @@ func (c *Console) Write(p []byte) (n int, err error) {
             _, err = fmt.Fprint(os.Stdout, StringBlue(msg))
         case "[WARN]":
             _, err = fmt.Fprint(os.Stderr, StringYellow(msg))
-        case "[ERRO]":
+        case "[ERRO]", "[FATA]":
             _, err = fmt.Fprint(os.Stderr, StringRed(msg))
         case "[HTTP]":
             _, err = fmt.Fprint(os.Stdout, StringGreen(msg))

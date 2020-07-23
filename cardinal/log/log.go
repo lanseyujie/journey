@@ -4,6 +4,7 @@ import (
     "fmt"
     "io"
     "journey/cardinal/log/console"
+    "os"
     "runtime"
     "strings"
     "time"
@@ -177,6 +178,14 @@ func Error(v ...interface{}) {
     if !std.disable {
         _, _ = std.PrefixWrite("[ERRO]", v...)
     }
+}
+
+// Fatal
+func Fatal(v ...interface{}) {
+    if !std.disable {
+        _, _ = std.PrefixWrite("[FATA]", v...)
+    }
+    os.Exit(1)
 }
 
 // Http
