@@ -32,7 +32,7 @@ func TestRss_WriteTo(t *testing.T) {
 func TestRss_ReadFrom(t *testing.T) {
     rss := NewRss()
     xml := `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
     <channel>
         <title>EXAMPLE WEB</title>
         <link>https://example.com</link>
