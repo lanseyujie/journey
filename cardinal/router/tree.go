@@ -154,12 +154,15 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
                             }
                         } else {
                             // for regexp rule
-                            if childNode.pattern != nil && childNode.pattern.MatchString(name) {
-                                found = true
-                                params[childNode.key] = name
-                                node = childNode
+                            if childNode.pattern != nil {
+                                result := childNode.pattern.FindStringSubmatch(name)
+                                if len(result) == 2 {
+                                    found = true
+                                    params[childNode.key] = result[1]
+                                    node = childNode
 
-                                break
+                                    break
+                                }
                             }
                         }
                     }
@@ -259,14 +262,14 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
     lastChar := rule[length-1:]
 
     if firstChar == ":" && length > 1 {
-        // e.g. :id, :name, :uid(^[\d]+$), :*, :static*, :str
+        // e.g. :id, :name, :uid(^([\d]+)$), :*, :static*, :str
         s := rule[1:]
         if s == "id" {
             key = "id"
-            pattern = regexp.MustCompile(`^[\d]+$`)
+            pattern = regexp.MustCompile(`^([\d]+)$`)
         } else if s == "name" {
             key = "name"
-            pattern = regexp.MustCompile(`^[\w-]+$`)
+            pattern = regexp.MustCompile(`^([\w-]+)$`)
         } else if s[len(s)-1:] == "*" {
             // :*, :static*
             isWildcard = true
@@ -275,7 +278,7 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
             a := strings.Index(s, "(")
             b := strings.LastIndex(s, ")")
             if 0 < a && a < b {
-                // :uid(^[\d]+$)
+                // :uid(^([\d]+)$)
                 key = s[:a]
                 pattern = regexp.MustCompile(s[a+1 : b])
             } else if a == -1 && b == -1 {
@@ -288,9 +291,9 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
         res := strings.Split(rule[1:length-1], ":")
         key = res[0]
         if key == "id" {
-            pattern = regexp.MustCompile(`^[\d]+$`)
+            pattern = regexp.MustCompile(`^([\d]+)$`)
         } else if key == "name" {
-            pattern = regexp.MustCompile(`^[\w-]+$`)
+            pattern = regexp.MustCompile(`^([\w-]+)$`)
         } else if key[len(key)-1:] == "*" {
             // {*}, {static*}
             isWildcard = true
