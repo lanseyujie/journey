@@ -12,7 +12,7 @@ import (
 
 type MySql struct {
     host     string
-    port     uint
+    port     int
     username string
     password string
     database string
@@ -21,7 +21,7 @@ type MySql struct {
 }
 
 // NewMySql
-func NewMySql(host string, port uint, username, password, database, prefix string, options map[string]string) *MySql {
+func NewMySql(host string, port int, username, password, database, prefix string, options map[string]string) *MySql {
     return &MySql{
         host:     host,
         port:     port,

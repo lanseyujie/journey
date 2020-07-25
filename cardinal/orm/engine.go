@@ -15,7 +15,7 @@ func NewEngine(name string, d Dialect) *Engine {
         return e
     }
 
-    e:=  &Engine{
+    e := &Engine{
         dialect: d,
     }
 

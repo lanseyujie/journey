@@ -301,7 +301,15 @@ func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) 
         return
     }
 
-    model := reflect.New(rType.Elem()).Elem()
+    var model reflect.Value
+    isPtr := rType.Elem().Kind() == reflect.Ptr
+    if isPtr {
+        // e.g. []*Member{}
+        model = reflect.New(rType.Elem().Elem()).Elem()
+    } else {
+        // e.g. []Member
+        model = reflect.New(rType.Elem()).Elem()
+    }
 
     // sql column name to model field name
     alias := make(map[string]string)
@@ -332,7 +340,12 @@ func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) 
         if err != nil {
             return
         }
-        rValue.Set(reflect.Append(rValue, model))
+
+        if isPtr {
+            rValue.Set(reflect.Append(rValue, model.Addr()))
+        } else {
+            rValue.Set(reflect.Append(rValue, model))
+        }
     }
 
     return rows.Err()
