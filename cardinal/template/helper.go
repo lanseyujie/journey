@@ -2,6 +2,7 @@ package template
 
 import (
     "html/template"
+    "strings"
     "time"
 )
 
@@ -13,6 +14,11 @@ func Html(str string) template.HTML {
 // String
 func String(bytes []byte) string {
     return string(bytes)
+}
+
+// StringJoin
+func StringJoin(strs []string, sep string) string {
+    return strings.Join(strs, sep)
 }
 
 // DateFormat
