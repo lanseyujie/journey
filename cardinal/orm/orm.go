@@ -7,13 +7,14 @@ import (
     "go/ast"
     "journey/cardinal/utils"
     "reflect"
+    "time"
 )
 
 type Orm struct {
     engine *Engine
-    ctx    context.Context
-    tx     *sql.Tx
 }
+
+type CtxFn func() context.Context
 
 var (
     ErrEngineIsNil     = errors.New("orm: engine is nil")
@@ -24,7 +25,7 @@ var (
 )
 
 // NewOrm
-func NewOrm(engine *Engine, ctx context.Context) (*Orm, error) {
+func NewOrm(engine *Engine) (*Orm, error) {
     if engine == nil {
         return nil, ErrEngineIsNil
     }
@@ -37,14 +38,22 @@ func NewOrm(engine *Engine, ctx context.Context) (*Orm, error) {
         return nil, err
     }
 
-    if ctx == nil {
-        ctx = context.Background()
-    }
+    return &Orm{engine: engine}, nil
+}
 
-    return &Orm{
-        engine: engine,
-        ctx:    ctx,
-    }, nil
+// Query
+func (orm *Orm) Query(fn CtxFn) *Query {
+    if fn == nil {
+        fn = func() context.Context {
+            ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
+
+            return ctx
+        }
+    }
+    return &Query{
+        db:    orm.engine.db,
+        ctxFn: fn,
+    }
 }
 
 // ParseModel
@@ -105,7 +114,7 @@ func (orm *Orm) CreateTable(model interface{}) error {
         return err
     }
 
-    _, err = orm.Exec(table.Create())
+    _, err = orm.Query(nil).Exec(table.Create())
 
     return err
 }
@@ -117,7 +126,7 @@ func (orm *Orm) DropTable(model interface{}) error {
         return err
     }
 
-    _, err = orm.Exec(table.Drop())
+    _, err = orm.Query(nil).Exec(table.Drop())
 
     return err
 }
@@ -158,7 +167,7 @@ func (orm *Orm) ExistTable(table interface{}) (exist bool, err error) {
         return false, ErrUnsupportedType
     }
 
-    err = orm.QueryRow(preSql, params, &exist)
+    err = orm.Query(nil).QueryRow(preSql, params, &exist)
 
     return
 }
@@ -202,151 +211,4 @@ func (orm *Orm) Select(models interface{}) {
 // Migrate
 func (orm *Orm) Migrate() {
     // TODO://
-}
-
-// GetStmt
-func (orm *Orm) GetStmt(preSql string) (stmt *sql.Stmt, err error) {
-    if orm.tx != nil {
-        stmt, err = orm.tx.Prepare(preSql)
-    } else {
-        stmt, err = orm.engine.db.Prepare(preSql)
-    }
-
-    return
-}
-
-// Begin
-func (orm *Orm) Begin(opts *sql.TxOptions) error {
-    tx, err := orm.engine.db.BeginTx(orm.ctx, opts)
-    if err != nil {
-        return err
-    }
-
-    orm.tx = tx
-
-    return nil
-}
-
-// Rollback
-func (orm *Orm) Rollback() error {
-    if orm.tx != nil {
-        return orm.tx.Rollback()
-    } else {
-        return ErrTransNotStart
-    }
-}
-
-// Commit
-func (orm *Orm) Commit() error {
-    if orm.tx != nil {
-        return orm.tx.Commit()
-    } else {
-        return ErrTransNotStart
-    }
-}
-
-// Exec
-func (orm *Orm) Exec(preSql string, params ...interface{}) (sql.Result, error) {
-    stmt, err := orm.GetStmt(preSql)
-    if err != nil {
-        return nil, err
-    }
-    defer stmt.Close()
-
-    return stmt.ExecContext(orm.ctx, params...)
-}
-
-// QueryRow
-func (orm *Orm) QueryRow(preSql string, params []interface{}, values ...interface{}) error {
-    stmt, err := orm.GetStmt(preSql)
-    if err != nil {
-        return err
-    }
-    defer stmt.Close()
-
-    row := stmt.QueryRowContext(orm.ctx, params...)
-
-    return row.Scan(values...)
-}
-
-// Query
-func (orm *Orm) Query(models interface{}, preSql string, params ...interface{}) (err error) {
-    var (
-        stmt *sql.Stmt
-        rows *sql.Rows
-        cols []string
-    )
-
-    rValue := reflect.Indirect(reflect.ValueOf(models))
-    rType := rValue.Type()
-    if rType.Kind() != reflect.Slice {
-        return ErrUnsupportedType
-    }
-
-    stmt, err = orm.GetStmt(preSql)
-    if err != nil {
-        return err
-    }
-    defer stmt.Close()
-
-    rows, err = stmt.QueryContext(orm.ctx, params...)
-    if err != nil {
-        return
-    }
-    defer rows.Close()
-
-    // get the column names of the query
-    cols, err = rows.Columns()
-    if err != nil {
-        return
-    }
-
-    var model reflect.Value
-    isPtr := rType.Elem().Kind() == reflect.Ptr
-    if isPtr {
-        // e.g. []*Member{}
-        model = reflect.New(rType.Elem().Elem()).Elem()
-    } else {
-        // e.g. []Member
-        model = reflect.New(rType.Elem()).Elem()
-    }
-
-    // sql column name to model field name
-    alias := make(map[string]string)
-    for i := 0; i < model.NumField(); i++ {
-        field := model.Type().Field(i)
-        name := field.Name
-        if tag, exist := field.Tag.Lookup("orm"); exist {
-            alias[tag] = name
-        } else {
-            alias[utils.UnderScoreCase(name)] = name
-        }
-    }
-
-    // iterate over each row
-    for rows.Next() {
-        var results []interface{}
-        // associated with the query results to model field
-        for _, col := range cols {
-            field := model.FieldByName(alias[col])
-            if field.IsValid() {
-                results = append(results, field.Addr().Interface())
-            } else {
-                return ErrUnexpectedField
-            }
-        }
-
-        err = rows.Scan(results...)
-        if err != nil {
-            return
-        }
-
-        if isPtr {
-            rValue.Set(reflect.Append(rValue, model.Addr()))
-        } else {
-            rValue.Set(reflect.Append(rValue, model))
-        }
-    }
-
-    return rows.Err()
 }
