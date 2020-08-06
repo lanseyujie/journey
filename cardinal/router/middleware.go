@@ -134,3 +134,20 @@ func MiddlewareHttpsUpgrade(port int) HandlerFunc {
         }
     }
 }
+
+// MiddlewareBasicAuth
+func MiddlewareBasicAuth(auth map[string]string) HandlerFunc {
+    return func(httpCtx *Context) {
+        username, password, ok := httpCtx.Input.BasicAuth()
+        if ok {
+            if pass, exist := auth[username]; exist && pass == password {
+                httpCtx.Next()
+
+                return
+            }
+        }
+
+        httpCtx.SetHeader("WWW-Authenticate", `Basic realm="Restricted"`)
+        httpCtx.Error(http.StatusUnauthorized)
+    }
+}

@@ -218,7 +218,7 @@ func (ctx *Context) StatusCode(code int) {
 
 // SetHeader
 func (ctx *Context) SetHeader(key, value string) {
-    ctx.Input.Header.Set(key, value)
+    ctx.Output.Header().Set(key, value)
 }
 
 // Redirect response
