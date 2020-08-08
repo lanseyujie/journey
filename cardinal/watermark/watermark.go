@@ -4,6 +4,7 @@ import (
     "errors"
     "image"
     "image/draw"
+    "image/gif"
     "image/jpeg"
     "image/png"
     "os"
@@ -50,12 +51,12 @@ func (wm *Watermark) SetMarkImage(file string, pos Position) error {
         img, err = jpeg.Decode(f)
     case ".png":
         img, err = png.Decode(f)
-    // case ".gif":
-    //     var gifImg *gif.GIF
-    //     gifImg, err = gif.DecodeAll(f)
-    //     if err == nil && len(gifImg.Image) > 0 {
-    //         img = gifImg.Image[0]
-    //     }
+    case ".gif":
+        gifImg, err := gif.DecodeAll(f)
+        if err != nil {
+            return err
+        }
+        img = gifImg.Image[0]
     default:
         err = ErrUnsupportedImageType
     }
@@ -139,18 +140,22 @@ func (wm *Watermark) Do(imageFile string) error {
         return err
     }
 
-    var img image.Image
+    var (
+        img    image.Image
+        gifImg *gif.GIF
+    )
+
     switch ext {
     case ".jpg", ".jpeg":
         img, err = jpeg.Decode(f)
     case ".png":
         img, err = png.Decode(f)
-    // case ".gif":
-    //     var gifImg *gif.GIF
-    //     gifImg, err = gif.DecodeAll(f)
-    //     if err == nil && len(gifImg.Image) > 0 {
-    //         img = gifImg.Image[0]
-    //     }
+    case ".gif":
+        gifImg, err = gif.DecodeAll(f)
+        if err != nil {
+            return err
+        }
+        img = gifImg.Image[0]
     default:
         err = ErrUnsupportedImageType
     }
@@ -160,19 +165,29 @@ func (wm *Watermark) Do(imageFile string) error {
     }
 
     point := wm.getPoint(img.Bounds().Dx(), img.Bounds().Dy())
-    dstImg := image.NewNRGBA64(img.Bounds())
-    draw.Draw(dstImg, dstImg.Bounds(), img, image.Point{}, draw.Src)
-    draw.Draw(dstImg, dstImg.Bounds(), wm.image, point, draw.Over)
-
     if _, err = f.Seek(0, 0); err != nil {
         return err
     }
 
     switch ext {
     case ".jpg", ".jpeg":
+        dstImg := image.NewNRGBA64(img.Bounds())
+        draw.Draw(dstImg, dstImg.Bounds(), img, image.Point{}, draw.Src)
+        draw.Draw(dstImg, dstImg.Bounds(), wm.image, point, draw.Over)
         return jpeg.Encode(f, dstImg, nil)
     case ".png":
+        dstImg := image.NewNRGBA64(img.Bounds())
+        draw.Draw(dstImg, dstImg.Bounds(), img, image.Point{}, draw.Src)
+        draw.Draw(dstImg, dstImg.Bounds(), wm.image, point, draw.Over)
         return png.Encode(f, dstImg)
+    case ".gif":
+        for index, img := range gifImg.Image {
+            dstImg := image.NewPaletted(img.Bounds(), img.Palette)
+            draw.Draw(dstImg, dstImg.Bounds(), img, image.Point{}, draw.Src)
+            draw.Draw(dstImg, dstImg.Bounds(), wm.image, point, draw.Over)
+            gifImg.Image[index] = dstImg
+        }
+        return gif.EncodeAll(f, gifImg)
     default:
         return ErrUnsupportedImageType
     }
