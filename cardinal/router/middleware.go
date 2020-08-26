@@ -10,6 +10,7 @@ import (
     "net/http/httputil"
     "strconv"
     "strings"
+    "sync/atomic"
     "time"
 )
 
@@ -149,5 +150,63 @@ func MiddlewareBasicAuth(auth map[string]string) HandlerFunc {
 
         httpCtx.SetHeader("WWW-Authenticate", `Basic realm="Restricted"`)
         httpCtx.Error(http.StatusUnauthorized)
+    }
+}
+
+type RateLimiter struct {
+    rate, unit, max, bucket, last uint64
+}
+
+func New(rate uint64, period time.Duration) *RateLimiter {
+    if rate < 1 {
+        rate = 1
+    }
+
+    unit := uint64(period)
+    if unit < 1 {
+        unit = uint64(time.Second)
+    }
+
+    max := rate * unit
+
+    return &RateLimiter{
+        rate:   rate,
+        unit:   unit,
+        max:    max,
+        bucket: max,
+        last:   uint64(time.Now().UnixNano()),
+    }
+}
+
+func (rl *RateLimiter) Limit() bool {
+    now := uint64(time.Now().UnixNano())
+    passed := now - atomic.SwapUint64(&rl.last, now)
+
+    current := atomic.AddUint64(&rl.bucket, passed*rl.rate)
+    if current > rl.max {
+        current = rl.max
+        atomic.StoreUint64(&rl.bucket, current)
+    }
+
+    if current < rl.unit {
+        return true
+    }
+
+    // rl.bucket - rl.unit
+    atomic.AddUint64(&rl.bucket, ^(rl.unit - 1))
+
+    return false
+}
+
+// MiddlewareRateLimit
+func MiddlewareRateLimit(rate uint64, period time.Duration) HandlerFunc {
+    limiter := New(rate, period)
+
+    return func(httpCtx *Context) {
+        if limiter.Limit() {
+            httpCtx.Error(http.StatusForbidden)
+        } else {
+            httpCtx.Next()
+        }
     }
 }
