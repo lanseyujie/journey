@@ -24,23 +24,10 @@ type Template struct {
 var (
     extension    = "html" // template file extension
     disableCache = false
-    funcMap      = make(template.FuncMap)
     pool         = make([]*Template, 0, 1)
     cache        = make(map[string]ThemeCache) // ThemeName => ThemeCache
     cacheLock    = &sync.RWMutex{}
 )
-
-func init() {
-    AddFuncMap("html", Html)
-    AddFuncMap("string", String)
-    AddFuncMap("stringjoin", StringJoin)
-    AddFuncMap("dateformat", DateFormat)
-    AddFuncMap("substr", Substr)
-    AddFuncMap("add", Add)
-    AddFuncMap("sub", Subtract)
-    AddFuncMap("mul", Multiply)
-    AddFuncMap("div", Divide)
-}
 
 // NewTemplate
 func NewTemplate(name, root string) *Template {
@@ -67,11 +54,6 @@ func Extension(ext string) {
 // DisableCache
 func DisableCache(disable bool) {
     disableCache = disable
-}
-
-// AddFuncMap register a func in the template
-func AddFuncMap(key string, fn interface{}) {
-    funcMap[key] = fn
 }
 
 // Theme

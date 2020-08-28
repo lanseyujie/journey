@@ -6,6 +6,25 @@ import (
     "time"
 )
 
+var funcMap = make(template.FuncMap)
+
+func init() {
+    AddFuncMap("html", Html)
+    AddFuncMap("string", String)
+    AddFuncMap("stringjoin", StringJoin)
+    AddFuncMap("dateformat", DateFormat)
+    AddFuncMap("substr", Substr)
+    AddFuncMap("add", Add)
+    AddFuncMap("sub", Subtract)
+    AddFuncMap("mul", Multiply)
+    AddFuncMap("div", Divide)
+}
+
+// AddFuncMap register a func in the template
+func AddFuncMap(key string, fn interface{}) {
+    funcMap[key] = fn
+}
+
 // Html
 func Html(str string) template.HTML {
     return template.HTML(str)
