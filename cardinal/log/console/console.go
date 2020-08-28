@@ -20,27 +20,27 @@ func NewConsole() *Console {
 
 // StringPurple
 func StringPurple(str string) string {
-    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 95, 1, str, 0x1B)
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 35, 1, str, 0x1B)
 }
 
 // StringBlue
 func StringBlue(str string) string {
-    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 94, 1, str, 0x1B)
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 34, 1, str, 0x1B)
 }
 
 // StringYellow
 func StringYellow(str string) string {
-    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 93, 1, str, 0x1B)
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 33, 1, str, 0x1B)
 }
 
 // StringGreen
 func StringGreen(str string) string {
-    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 92, 1, str, 0x1B)
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 32, 1, str, 0x1B)
 }
 
 // StringRed
 func StringRed(str string) string {
-    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 91, 1, str, 0x1B)
+    return fmt.Sprintf("%c[%d;%d;%dm%s%c[0m", 0x1B, 0, 31, 1, str, 0x1B)
 }
 
 // Write
