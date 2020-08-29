@@ -2,11 +2,8 @@ package utils
 
 import "strings"
 
-// PascalCase
+// PascalCase e.g. HelloWorld
 // the format is camel case if lf[0] is true
-// UnderScoreCase: hello_world
-// PascalCase: HelloWorld
-// CamelCase: helloWorld
 func PascalCase(underscore string, lf ...bool) string {
     usc := []byte(strings.ToLower(underscore))
     cc := make([]byte, 0, len(usc))
@@ -28,7 +25,12 @@ func PascalCase(underscore string, lf ...bool) string {
     return string(cc)
 }
 
-// UnderScoreCase
+// CamelCase e.g. helloWorld
+func CamelCase(underscore string) string {
+    return PascalCase(underscore, true)
+}
+
+// UnderScoreCase e.g. hello_world
 func UnderScoreCase(camel string) string {
     cc := []byte(camel)
     usc := make([]byte, 0, len(cc))
