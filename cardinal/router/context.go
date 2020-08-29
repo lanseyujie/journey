@@ -14,7 +14,7 @@ import (
 
 var errorHandler = make(map[int]HandlerFunc)
 
-type Array map[string]interface{}
+type H map[string]interface{}
 
 // Context is the router context
 type Context struct {
@@ -189,12 +189,13 @@ func (ctx *Context) CanonicalJson(code int, msg string, data interface{}) {
     ctx.Output.Header().Set("Cache-Control", "no-store")
     ctx.Output.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-    arr := make(Array)
-    arr["code"] = code
-    arr["msg"] = msg
-    arr["data"] = data
+    m := H{
+        "code": code,
+        "msg":  msg,
+        "data": data,
+    }
 
-    b, err := json.Marshal(&arr)
+    b, err := json.Marshal(&m)
     if err != nil {
         b = []byte(`{"code":500,"msg":"json encode error","data":""}`)
     }

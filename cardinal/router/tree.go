@@ -120,7 +120,6 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 // Match the request uri in the tree to get the target node
 func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handler HandlerFunc, params map[string]string) {
     currentNode := t.root
-    middleware = make([]HandlerFunc, 0, 2)
     if len(currentNode.middleware) > 0 {
         middleware = append(middleware, currentNode.middleware...)
     }
