@@ -13,7 +13,7 @@ import (
     "sync"
 )
 
-type Template struct {
+type Theme struct {
     name      string                        // theme name
     root      string                        // template storage root path
     extension string                        // template file extension
@@ -23,9 +23,9 @@ type Template struct {
     sync.RWMutex
 }
 
-// NewTemplate
-func NewTemplate(name, root string) *Template {
-    return &Template{
+// NewTheme
+func NewTheme(name, root string) *Theme {
+    return &Theme{
         name:      name,
         root:      root,
         extension: "html",
@@ -34,28 +34,28 @@ func NewTemplate(name, root string) *Template {
 }
 
 // Extension
-func (tpl *Template) Extension(ext string) *Template {
-    tpl.extension = ext
+func (t *Theme) Extension(ext string) *Theme {
+    t.extension = ext
 
-    return tpl
+    return t
 }
 
 // DisableCache
-func (tpl *Template) DisableCache(flag ...bool) *Template {
+func (t *Theme) DisableCache(flag ...bool) *Theme {
     if len(flag) > 0 {
-        tpl.debug = flag[0]
+        t.debug = flag[0]
     } else {
-        tpl.debug = true
+        t.debug = true
     }
 
-    return tpl
+    return t
 }
 
 // Index supported template files
-func (tpl *Template) Index() error {
-    tpl.files = []string{}
+func (t *Theme) Index() error {
+    t.files = []string{}
 
-    err := filepath.Walk(tpl.root, func(path string, f os.FileInfo, err error) error {
+    err := filepath.Walk(t.root, func(path string, f os.FileInfo, err error) error {
         if f == nil {
             return err
         }
@@ -65,12 +65,12 @@ func (tpl *Template) Index() error {
             return nil
         }
 
-        if !strings.HasSuffix(path, "."+tpl.extension) {
+        if !strings.HasSuffix(path, "."+t.extension) {
             return nil
         }
 
         // save the relative path of the template file
-        tpl.files = append(tpl.files, strings.TrimLeft(path[len(tpl.root):], "/"))
+        t.files = append(t.files, strings.TrimLeft(path[len(t.root):], "/"))
 
         return nil
     })
@@ -79,14 +79,14 @@ func (tpl *Template) Index() error {
 }
 
 // Parse template
-func (tpl *Template) Parse(file, parent string, t *template.Template) (*template.Template, error) {
+func (t *Theme) Parse(file, parent string, tpl *template.Template) (*template.Template, error) {
     var path string
     if strings.HasPrefix(file, "../") {
         parent = filepath.Join(filepath.Dir(parent), file)
-        path = filepath.Join(tpl.root, filepath.Dir(parent), file)
+        path = filepath.Join(t.root, filepath.Dir(parent), file)
     } else {
         parent = file
-        path = filepath.Join(tpl.root, file)
+        path = filepath.Join(t.root, file)
     }
 
     html, err := ioutil.ReadFile(path)
@@ -94,10 +94,10 @@ func (tpl *Template) Parse(file, parent string, t *template.Template) (*template
         return nil, err
     }
 
-    if t == nil {
-        t, err = template.New(file).Funcs(funcMap).Parse(string(html))
+    if tpl == nil {
+        tpl, err = template.New(file).Funcs(funcMap).Parse(string(html))
     } else {
-        t, err = t.New(file).Parse(string(html))
+        tpl, err = tpl.New(file).Parse(string(html))
     }
 
     if err != nil {
@@ -110,86 +110,86 @@ func (tpl *Template) Parse(file, parent string, t *template.Template) (*template
     allSubTpl := re.FindAllStringSubmatch(string(html), -1)
     for _, sub := range allSubTpl {
         if len(sub) == 2 {
-            // ignore the template associated with t
-            if t.Lookup(sub[1]) != nil {
+            // ignore the template associated with tpl
+            if tpl.Lookup(sub[1]) != nil {
                 continue
             }
 
             // ignore the file name without extension, e.g. {{template "banner" .}}
-            if !strings.HasSuffix(sub[1], "."+tpl.extension) {
+            if !strings.HasSuffix(sub[1], "."+t.extension) {
                 continue
             }
 
             // parse sub-template
-            _, err = tpl.Parse(sub[1], parent, t)
+            _, err = t.Parse(sub[1], parent, tpl)
             if err != nil {
                 return nil, err
             }
         }
     }
 
-    return t, nil
+    return tpl, nil
 }
 
 // Build the template with the relative path of the file
-func (tpl *Template) Build(files ...string) (err error) {
-    _, err = os.Stat(tpl.root)
+func (t *Theme) Build(files ...string) (err error) {
+    _, err = os.Stat(t.root)
     if err != nil {
         return
     }
 
     // build all templates in the theme directory if no file is specified
     if len(files) == 0 {
-        err = tpl.Index()
+        err = t.Index()
         if err != nil {
             return
         }
-        files = tpl.files
+        files = t.files
     }
 
-    tpl.Lock()
+    t.Lock()
     for _, file := range files {
-        var t *template.Template
-        t, err = tpl.Parse(file, "", nil)
+        var tpl *template.Template
+        tpl, err = t.Parse(file, "", nil)
         if err != nil {
             err = errors.New("template: " + file + " parse error, " + err.Error())
             break
         }
-        tpl.cache[file] = t
+        t.cache[file] = tpl
     }
-    tpl.Unlock()
+    t.Unlock()
 
     return
 }
 
 // Render
-func (tpl *Template) Render(wr io.Writer, name string, data interface{}) (err error) {
-    if tpl.debug {
-        err = tpl.Build(name)
+func (t *Theme) Render(wr io.Writer, name string, data interface{}) (err error) {
+    if t.debug {
+        err = t.Build(name)
         if err != nil {
             return
         }
     }
 
-    tpl.RLock()
-    if t := tpl.cache[name]; t != nil {
-        if t.Lookup(name) != nil {
-            err = t.ExecuteTemplate(wr, name, data)
+    t.RLock()
+    if tpl := t.cache[name]; tpl != nil {
+        if tpl.Lookup(name) != nil {
+            err = tpl.ExecuteTemplate(wr, name, data)
         } else {
-            err = t.Execute(wr, data)
+            err = tpl.Execute(wr, data)
         }
     } else {
-        err = errors.New("template: " + tpl.name + " not found")
+        err = errors.New("template: " + t.name + " not found")
     }
-    tpl.RUnlock()
+    t.RUnlock()
 
     return
 }
 
 // Render template with layout file
-func (tpl *Template) RenderLayout(wr io.Writer, name, layout string, data map[string]interface{}) error {
+func (t *Theme) RenderLayout(wr io.Writer, name, layout string, data map[string]interface{}) error {
     var buf bytes.Buffer
-    err := tpl.Render(&buf, name, data)
+    err := t.Render(&buf, name, data)
     if err != nil {
         return err
     }
@@ -197,5 +197,5 @@ func (tpl *Template) RenderLayout(wr io.Writer, name, layout string, data map[st
     data["LayoutContent"] = template.HTML(buf.String())
 
     // layout
-    return tpl.Render(wr, layout, data)
+    return t.Render(wr, layout, data)
 }
