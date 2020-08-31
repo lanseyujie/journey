@@ -27,6 +27,8 @@ func NewTree() *Tree {
 // HandlerFunc is the type of middleware and controller
 type HandlerFunc func(httpCtx *Context)
 
+type HandlersChain []HandlerFunc
+
 // Node mounts the callback controller
 type Node struct {
     depth      int
@@ -37,8 +39,8 @@ type Node struct {
     pattern    *regexp.Regexp
     parent     *Node
     children   map[string]*Node
-    handlers   map[string]HandlerFunc
-    middleware []HandlerFunc
+    handlers   map[string]HandlersChain
+    middleware HandlersChain
 }
 
 // NewNode returns a new node based on the rule and node depth
@@ -53,7 +55,7 @@ func NewNode(rule string, depth int) *Node {
         rule:     rule,
         fullRule: fullRule,
         children: make(map[string]*Node),
-        handlers: make(map[string]HandlerFunc),
+        handlers: make(map[string]HandlersChain),
     }
 }
 
@@ -66,6 +68,7 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
     }
     length := len(fullRule)
 
+    var handlers HandlersChain
     if currentNode.fullRule != fullRule {
         start := 1
         for i := start; i <= length; i++ {
@@ -97,6 +100,12 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 
             currentNode = node
 
+            // save the passed middleware to the handlers
+            // handlers will be used directly when the route matching hits
+            if handler != nil && len(currentNode.middleware) > 0 {
+                handlers = append(handlers, currentNode.middleware...)
+            }
+
             // do not register nodes after wildcard nodes
             if isWildcard {
                 break
@@ -106,25 +115,25 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
         }
     }
 
-    // register the controller method at the last node
-    if handler != nil {
-        currentNode.handlers[strings.ToUpper(method)] = handler
-    }
+    // filter
     for _, m := range middleware {
         if m != nil {
             currentNode.middleware = append(currentNode.middleware, m)
         }
     }
+
+    // register the controller method at the last node
+    if handler != nil {
+        handlers = append(handlers, currentNode.middleware...)
+        handlers = append(handlers, handler)
+        currentNode.handlers[strings.ToUpper(method)] = handlers
+    }
 }
 
 // Match the request uri in the tree to get the target node
-func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handler HandlerFunc, params map[string]string) {
+func (t *Tree) Match(ctx *Context, requestUri, method string) {
     currentNode := t.root
-    if len(currentNode.middleware) > 0 {
-        middleware = append(middleware, currentNode.middleware...)
-    }
-    params = make(map[string]string)
-
+    ctx.params = make(map[string]string)
     if currentNode.fullRule != requestUri {
         length := len(requestUri)
         start := 1
@@ -146,7 +155,7 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
                             // for wildcard
                             if childNode.key == "*" || childNode.key == name+"*" {
                                 found = true
-                                params[childNode.key] = requestUri[start:]
+                                ctx.params[childNode.key] = requestUri[start:]
                                 node = childNode
 
                                 break
@@ -157,7 +166,7 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
                                 result := childNode.pattern.FindStringSubmatch(name)
                                 if len(result) == 2 {
                                     found = true
-                                    params[childNode.key] = result[1]
+                                    ctx.params[childNode.key] = result[1]
                                     node = childNode
 
                                     break
@@ -169,18 +178,14 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
 
                 // node not found
                 if !found {
-                    handler = GetErrorHandler(http.StatusNotFound)
+                    currentNode = nil
 
-                    return
+                    break
                 }
             }
 
             // node found
-
             currentNode = node
-            if len(currentNode.middleware) > 0 {
-                middleware = append(middleware, currentNode.middleware...)
-            }
             if currentNode.isWildcard {
                 // do not match nodes after wildcard nodes
                 break
@@ -190,27 +195,32 @@ func (t *Tree) Match(requestUri, method string) (middleware []HandlerFunc, handl
         }
     }
 
-    var exist bool
-    handler, exist = currentNode.handlers[method]
-    if !exist {
-        // call the GET handler if the HEAD handler does not exist
-        if method == http.MethodHead {
-            handler, exist = currentNode.handlers[http.MethodGet]
-            if handler == nil && exist {
-                handler = GetErrorHandler(http.StatusNotImplemented)
+    if currentNode != nil {
+        var exist bool
+        ctx.handlers, exist = currentNode.handlers[method]
+        if ctx.handlers == nil {
+            // call the GET handler if the HEAD handler does not exist
+            if method == http.MethodHead {
+                ctx.handlers, exist = currentNode.handlers[http.MethodGet]
             }
-        }
-        if handler == nil {
-            // default handler
-            handler, exist = currentNode.handlers["ANY"]
-            if handler == nil {
-                if exist {
-                    handler = GetErrorHandler(http.StatusNotImplemented)
-                } else {
-                    handler = GetErrorHandler(http.StatusMethodNotAllowed)
+
+            if ctx.handlers == nil {
+                // default handler
+                ctx.handlers, exist = currentNode.handlers["ANY"]
+                if ctx.handlers == nil {
+                    ctx.handlers = append(ctx.handlers, t.root.middleware...)
+                    if exist {
+                        ctx.handlers = append(ctx.handlers, GetErrorHandler(http.StatusNotImplemented))
+                    } else {
+                        ctx.handlers = append(ctx.handlers, GetErrorHandler(http.StatusMethodNotAllowed))
+                    }
                 }
             }
         }
+    } else {
+        // not found
+        ctx.handlers = append(ctx.handlers, t.root.middleware...)
+        ctx.handlers = append(ctx.handlers, GetErrorHandler(http.StatusNotFound))
     }
 
     return

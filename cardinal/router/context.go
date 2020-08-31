@@ -18,14 +18,12 @@ type H map[string]interface{}
 
 // Context is the router context
 type Context struct {
-    Input      *http.Request
-    Output     http.ResponseWriter
-    index      int
-    middleware []HandlerFunc
-    handler    HandlerFunc
-    params     map[string]string
-    code       int
-    since      time.Time
+    Input    *http.Request
+    Output   http.ResponseWriter
+    index    int8
+    handlers HandlersChain
+    params   map[string]string
+    code     int
 }
 
 // NewContext returns a new router context
@@ -34,22 +32,14 @@ func NewContext(rw http.ResponseWriter, req *http.Request) *Context {
         Input:  req,
         Output: rw,
         code:   http.StatusOK,
-        since:  time.Now(),
+        index:  -1,
     }
 }
 
-// Next
 func (ctx *Context) Next() {
-    length := len(ctx.middleware)
-    current := ctx.index
-    if current <= length-1 {
-        // counted before because the called middleware does not return immediately
+    if ctx.index < int8(len(ctx.handlers)) {
         ctx.index++
-        ctx.middleware[current](ctx)
-    } else if current == length {
-        // invalid ctx.Next() is called in the controller
-        ctx.index++
-        ctx.handler(ctx)
+        ctx.handlers[ctx.index](ctx)
     }
 }
 
@@ -269,14 +259,9 @@ func (ctx *Context) GetStatusCode() int {
     return ctx.code
 }
 
-// GetSinceTime
-func (ctx *Context) GetSinceTime() time.Time {
-    return ctx.since
-}
-
 // Logger
 func (ctx *Context) Logger() string {
-    return fmt.Sprintf("%s %s %s %s %v %d %s", ctx.GetClientIp(), ctx.Input.Method, ctx.Input.Host, ctx.Input.URL, time.Since(ctx.since), ctx.code, ctx.Input.UserAgent())
+    return fmt.Sprintf("%s %s %s %s %d %s", ctx.GetClientIp(), ctx.Input.Method, ctx.Input.Host, ctx.Input.URL, ctx.code, ctx.Input.UserAgent())
 }
 
 // GetCookie

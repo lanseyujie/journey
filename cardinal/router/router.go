@@ -99,6 +99,6 @@ func (r *Router) PrintRoutes() {
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     httpCtx := NewContext(rw, req)
     // TODO:// cache
-    httpCtx.middleware, httpCtx.handler, httpCtx.params = r.tree.Match(req.URL.Path, req.Method)
+    r.tree.Match(httpCtx, req.URL.Path, req.Method)
     httpCtx.Next()
 }
