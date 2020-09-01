@@ -233,24 +233,22 @@ func (t *Tree) PrintRoutes(node *Node) {
     }
 
     fn := func(node *Node) {
-        p := node.fullRule
+        var p string
         if len(node.handlers) > 0 {
-            // middleware list
-            middleware := MiddlewareList(node)
-            if len(middleware) > 0 {
+            for method, chain := range node.handlers {
+                p += method + " " + node.fullRule
                 p += " ["
-                for i, m := range middleware {
-                    p += " " + strconv.Itoa(i) + ":" + runtime.FuncForPC(reflect.ValueOf(m).Pointer()).Name()
+                for i, fn := range chain {
+                    name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+                    if len(chain)-1 != i || strings.Contains(name, ".func") {
+                        name = name[:len(name)-6]
+                        index := strings.LastIndex(name, ".")
+                        name = name[index+1:]
+                    }
+                    p += " " + strconv.Itoa(i) + ":" + name
                 }
                 p += " ]"
             }
-
-            // controller list
-            p += " ["
-            for method, fn := range node.handlers {
-                p += " " + method + ":" + runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
-            }
-            p += " ]"
 
             fmt.Println(p)
         }
@@ -314,28 +312,4 @@ func compile(rule string) (key string, pattern *regexp.Regexp, isWildcard bool) 
     }
 
     return
-}
-
-// MiddlewareList returns middleware in each layer in top-down order
-func MiddlewareList(node *Node) []HandlerFunc {
-    if node.fullRule == "/" {
-        return node.middleware
-    }
-
-    list := make([]HandlerFunc, 0)
-    var fn func(node *Node) []HandlerFunc
-    fn = func(node *Node) []HandlerFunc {
-        if node.parent != nil {
-            if len(node.parent.middleware) > 0 {
-                list = append(node.parent.middleware, list...)
-            }
-
-            node = node.parent
-            fn(node)
-        }
-
-        return list
-    }
-
-    return fn(node)
 }
