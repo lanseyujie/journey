@@ -29,6 +29,11 @@ type HandlerFunc func(httpCtx *Context)
 
 type HandlersChain []HandlerFunc
 
+type Param struct {
+    Key   string
+    Value string
+}
+
 // Node mounts the callback controller
 type Node struct {
     depth      int
@@ -133,7 +138,6 @@ func (t *Tree) Insert(method, fullRule string, handler HandlerFunc, middleware .
 // Match the request uri in the tree to get the target node
 func (t *Tree) Match(ctx *Context, requestUri, method string) {
     currentNode := t.root
-    ctx.params = make(map[string]string)
     if currentNode.fullRule != requestUri {
         length := len(requestUri)
         start := 1
@@ -155,7 +159,12 @@ func (t *Tree) Match(ctx *Context, requestUri, method string) {
                             // for wildcard
                             if childNode.key == "*" || childNode.key == name+"*" {
                                 found = true
-                                ctx.params[childNode.key] = requestUri[start:]
+                                j := len(*ctx.params)
+                                *ctx.params = (*ctx.params)[:j+1]
+                                (*ctx.params)[j] = Param{
+                                    Key:   childNode.key,
+                                    Value: requestUri[start:],
+                                }
                                 node = childNode
 
                                 break
@@ -166,7 +175,12 @@ func (t *Tree) Match(ctx *Context, requestUri, method string) {
                                 result := childNode.pattern.FindStringSubmatch(name)
                                 if len(result) == 2 {
                                     found = true
-                                    ctx.params[childNode.key] = result[1]
+                                    j := len(*ctx.params)
+                                    *ctx.params = (*ctx.params)[:j+1]
+                                    (*ctx.params)[j] = Param{
+                                        Key:   childNode.key,
+                                        Value: result[1],
+                                    }
                                     node = childNode
 
                                     break

@@ -22,17 +22,20 @@ type Context struct {
     Output   http.ResponseWriter
     index    int8
     handlers HandlersChain
-    params   map[string]string
+    params   *[]Param
     code     int
 }
 
 // NewContext returns a new router context
 func NewContext(rw http.ResponseWriter, req *http.Request) *Context {
+    params := make([]Param, 0, 4)
+
     return &Context{
         Input:  req,
         Output: rw,
         code:   http.StatusOK,
         index:  -1,
+        params: &params,
     }
 }
 
@@ -78,7 +81,11 @@ func (ctx *Context) GetUri() string {
 
 // GetParams
 func (ctx *Context) GetParams(key string) (value string, exist bool) {
-    value, exist = ctx.params[key]
+    for _, param := range *ctx.params {
+        if param.Key == key {
+            return param.Value, true
+        }
+    }
 
     return
 }
