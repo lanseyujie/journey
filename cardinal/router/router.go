@@ -2,18 +2,26 @@ package router
 
 import (
     "net/http"
+    "sync"
 )
 
 // Router
 type Router struct {
     tree *Tree
+    pool sync.Pool
 }
 
 // NewRouter returns a new Router
 func NewRouter() *Router {
-    return &Router{
+    r := &Router{
         tree: NewTree(),
     }
+
+    r.pool.New = func() interface{} {
+        return NewContext()
+    }
+
+    return r
 }
 
 // Default returns a default configured router
@@ -97,8 +105,14 @@ func (r *Router) PrintRoutes() {
 
 // ServeHTTP
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-    httpCtx := NewContext(rw, req)
+    httpCtx := r.pool.Get().(*Context)
+    httpCtx.Input = req
+    httpCtx.Output = rw
+    httpCtx.reset()
+
     // TODO:// cache
     r.tree.Match(httpCtx, req.URL.Path, req.Method)
     httpCtx.Next()
+
+    r.pool.Put(httpCtx)
 }

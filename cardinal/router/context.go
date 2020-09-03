@@ -27,16 +27,21 @@ type Context struct {
 }
 
 // NewContext returns a new router context
-func NewContext(rw http.ResponseWriter, req *http.Request) *Context {
+func NewContext() *Context {
     params := make([]Param, 0, 4)
 
     return &Context{
-        Input:  req,
-        Output: rw,
         code:   http.StatusOK,
         index:  -1,
         params: &params,
     }
+}
+
+func (ctx *Context) reset() {
+    ctx.index = -1
+    ctx.handlers = nil
+    *ctx.params = (*ctx.params)[0:0]
+    ctx.code = http.StatusOK
 }
 
 func (ctx *Context) Next() {
