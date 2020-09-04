@@ -1,4 +1,4 @@
-module journey
+module github.com/lanseyujie/journey
 
 go 1.14
 
