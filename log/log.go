@@ -2,8 +2,8 @@ package log
 
 import (
     "fmt"
+    "github.com/lanseyujie/journey/log/console"
     "io"
-    "journey/cardinal/log/console"
     "os"
     "runtime"
     "strings"

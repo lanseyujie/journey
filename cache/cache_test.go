@@ -1,8 +1,8 @@
 package cache
 
 import (
-    "journey/cardinal/cache/file"
-    "journey/cardinal/cache/memory"
+    "github.com/lanseyujie/journey/cache/file"
+    "github.com/lanseyujie/journey/cache/memory"
     "testing"
     "time"
 )

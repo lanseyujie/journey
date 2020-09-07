@@ -5,7 +5,7 @@ import (
     "crypto/sha1"
     "encoding/base32"
     "encoding/binary"
-    "journey/cardinal/utils"
+    "github.com/lanseyujie/journey/utils"
     "net/url"
     "strconv"
     "strings"
